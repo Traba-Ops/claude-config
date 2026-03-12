@@ -28,7 +28,7 @@ An engineer should be able to re-implement this app from the spec alone. It accu
 ## Decision Records
 
 When a meaningful choice is made (e.g., "used polling instead of websockets because the data only changes hourly"), capture it in `decisions/YYYY-MM-DD-topic.md`:
-- What the options were
-- What was chosen and why
+- What the options were, with trade-offs for each
+- What was chosen and the reasoning behind it
 
 Decision records are append-only. If a decision is later reversed, write a new record explaining why. Commit them automatically.
