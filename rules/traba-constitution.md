@@ -54,6 +54,7 @@ Keep it conversational — group 2-3 related questions, don't interrogate. If th
 
 ## Development Hygiene
 - When the user says "checkpoint" (or "commit", "save", etc.), create a git commit
+- Proactively suggest checkpointing when a piece of work is done or the user is switching to a different task
 - Write commit messages that explain what changed AND why
   - Good: "add region filter — ops team needs to view their region only"
   - Bad: "update code" or "fix stuff"

@@ -16,28 +16,17 @@ The natural course is: you build something, others want it, it gets deployed, an
 
 ## Setup
 
-Before your first project, you need the Traba skills installed. You install once, and updates propagate automatically as the team improves the skills.
+Before your first project, you need the Traba skills installed. You install once, and updates pull automatically in the background.
 
-You'll need a terminal for these steps. Open Terminal and run the following:
-
-**Step 1 — Clone the skills repo:**
+Open Terminal and run:
 
 ```bash
-git clone https://github.com/Traba-Ops/claude-config.git ~/.traba-config
+curl -fsSL https://raw.githubusercontent.com/Traba-Ops/claude-config/main/install.sh | sh
 ```
 
-**Step 2 — Copy skills and rules into Claude:**
+Then open Claude and ask it to set up automatic updates:
 
-```bash
-cp -r ~/.traba-config/skills/* ~/.claude/skills/
-cp -r ~/.traba-config/rules/* ~/.claude/rules/
-```
-
-**Step 3 — Set up automatic updates:**
-
-Ask Claude to keep your skills current:
-
-> "Set up a launchd job that pulls `~/.traba-config` and copies its skills and rules to `~/.claude` twice a day at 10 AM and 7 PM"
+> "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
 
 That's it. From here, just open Claude (terminal or Claude Cowork) and start building. Skills update themselves in the background.
 
@@ -50,13 +39,13 @@ Once you install the Prometheus skills, Claude is pre-configured with:
 - **Design language:** your app looks and feels like a Traba product from the start
 - **Development hygiene:** your project builds up documentation naturally as you work, making it easy for others to pick up or for engineers to promote later
 - **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
-- **Automatic updates:** as we push improvements to the skill bundle, every project gets them automatically
+- **Automatic updates:** as we push improvements, every project gets them automatically
 
 ## Concepts You Should Know
 
 Claude will handle most of the technical complexity, but you should be familiar with these general concepts. If you're interested, the footnotes explain a bit more what's happening under the hood.
 
-- **Checkpoints:** Save your progress at any time by telling Claude "checkpoint this." Think of it like Google Docs version history, but for code. You can always go back. [^1]
+- **Checkpoints:** Save your progress at any time by telling Claude "checkpoint this." Think of it like Google Docs version history, but for code. You can always go back. Claude will also suggest checkpointing when you finish something or switch to a different task. [^1]
 
 - **Secrets:** API keys, passwords, and tokens that connect your app to other services. These should never be shared, pasted in Slack, or put directly in code. When your app needs a secret, an engineer will set it up for you. [^2]
 
@@ -66,7 +55,7 @@ Claude will handle most of the technical complexity, but you should be familiar 
 
 ## Beyond the Pipeline: Shipping to Core Directly
 
-The pipeline assumes a handoff between operators and engineers. But we're already experimenting with operators shipping directly to the core codebase: the marketing team (MDS, Kanellis) submitting small PRs, Rohan shipping an entire feature end-to-end. Within EPD we're also exploring options to accelerate AI agents working within our codebase like preview environments and automated review safety nets. In the near-term, we will enable operators to efficiently ship full-stack features safely and mostly autonomously with minimal engineering lift.
+The pipeline assumes a handoff between operators and engineers. But we're already experimenting with operators shipping directly to the core codebase: the marketing team (MDS, Kanellis) submitting small PRs, Rohan shipping an entire feature end-to-end. Within EPD we're also exploring options to accelerate AI agents working within our codebase like preview environments and automated review safety nets. The goal is to get operators shipping full-stack features independently, with minimal engineering lift.
 
 ## Internal Reference (Engineers)
 
