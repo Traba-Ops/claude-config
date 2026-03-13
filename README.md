@@ -24,11 +24,13 @@ Open Terminal and run:
 curl -fsSL https://raw.githubusercontent.com/Traba-Ops/claude-config/main/install.sh | sh
 ```
 
-Then open Claude and ask it to set up automatic updates:
+Then open **Claude Code** (either in the terminal or the Code tab in the Claude app) and ask it to set up automatic updates:
 
 > "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
 
-That's it. From here, just open Claude (terminal or Claude Cowork) and start building. Skills update themselves in the background.
+That's it. From here, just open Claude Code and start building. Skills update themselves in the background.
+
+> **Note:** The setup prompt above must be run in **Claude Code** — it won't work in the Chat or Co-work tabs of the Claude app.
 
 ## What You Get
 
