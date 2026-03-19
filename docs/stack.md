@@ -16,6 +16,7 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | Testing | Vitest | Jest | Native Vite integration, faster. Same API as Jest. |
 | Monorepo | bun workspaces | pnpm + Turborepo | One tool. Operator tools are small — Turborepo/Nx add complexity for no benefit at this scale. |
 | Database | Supabase | Neon | Supabase's abstraction layer is its strength here — dashboard UI, auto-generated REST APIs, built-in auth. Non-engineers can manage data without SQL. |
+| ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Supabase). Migration tooling built in. |
 | Backend deploy | Railway | Render | Best developer experience for fast deploys. One-click templates, Nixpacks auto-detection, GitHub auto-deploy. |
 | Frontend deploy | Cloudflare Pages | Vercel | Free unlimited bandwidth, free unlimited sites. No credit card. Preview deploys on PRs out of the box. |
 | Auth (shared apps) | Cloudflare Zero Trust | Google OAuth | Free for up to 50 users. Email-domain restriction (`@traba.work`) with magic link OTP. No IdP setup required. |
@@ -99,15 +100,20 @@ Neon is raw Postgres — no auth, no storage, no API layer, no visual dashboard 
 - Pro ($25/mo): 8 GB database, 100K MAUs, spend cap enabled by default
 - [Supabase pricing](https://supabase.com/pricing)
 
-**Critical security risk — Row Level Security (RLS):**
-83% of exposed Supabase databases involve RLS misconfigurations ([VibeAppScanner, 2026](https://vibeappscanner.com/supabase-row-level-security)). In January 2025, 170+ apps built with AI app builders were found with exposed databases because developers didn't enable RLS. This is the #1 risk for citizen developers using Supabase.
-
-**Mitigation:** The Claude skill must instruct that RLS is enabled on every table with explicit policies. The skill should generate RLS policies as part of table creation, not as an afterthought. For most internal tools, a simple "authenticated users can read, only row owner can write" policy is sufficient.
+**RLS is not required for Prometheus tools:**
+The widely-cited RLS risk (83% of exposed Supabase databases involve RLS misconfigurations) applies to public-facing apps where anyone can hit the Supabase REST API directly. Prometheus tools are internal-only, sitting behind Cloudflare Zero Trust Access which restricts entry to `@traba.work` emails. Access control happens at the network layer before any request reaches the app or database. Server-side access control in the application is sufficient — RLS adds complexity for no meaningful security benefit in this threat model.
 
 **References:**
-- [Supabase RLS documentation](https://supabase.com/docs/guides/database/postgres/row-level-security)
 - [Supabase Edge Functions limits](https://supabase.com/docs/guides/functions/limits) (2-second CPU time limit, 20 MB bundle)
 - [Supabase vs Neon comparison (Bytebase)](https://www.bytebase.com/blog/neon-vs-supabase/)
+
+---
+
+## ORM: Prisma
+
+When a project needs structured database access beyond simple queries, use Prisma. It generates a fully type-safe client from the schema file — queries get autocomplete and compile-time type checking with zero manual typing. Works across both tiers: SQLite for local prototypes, Postgres for Supabase-backed deployed apps. Schema is the source of truth for both the database and TypeScript types.
+
+**Runner-up — Drizzle:** Lighter weight, closer to raw SQL. Worth considering if bundle size or query performance becomes a bottleneck. Prisma's schema-first workflow is more approachable for AI-generated code.
 
 ---
 

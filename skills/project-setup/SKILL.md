@@ -104,4 +104,20 @@ When starting a new project:
 6. Frontend: `cd apps/web && bun create vite . --template react-ts`
 7. Backend: `cd apps/api && bun init`
 8. Shared: create `packages/shared/` with `package.json` and `src/index.ts`
-9. Run `bun install` from root to link workspaces
+9. Add `tsconfig.json` to each package (`apps/web/`, `apps/api/`, `packages/shared/`):
+   ```json
+   {
+     "compilerOptions": {
+       "target": "ES2022",
+       "module": "ESNext",
+       "moduleResolution": "bundler",
+       "strict": true,
+       "noUncheckedIndexedAccess": true,
+       "skipLibCheck": true,
+       "esModuleInterop": true
+     },
+     "include": ["src"]
+   }
+   ```
+10. Add `"typecheck": "tsgo --noEmit"` to each app's `package.json` scripts
+11. Run `bun install` from root to link workspaces
