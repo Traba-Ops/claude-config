@@ -6,7 +6,9 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 
 | Layer | Choice | Runner-up | Why |
 |-------|--------|-----------|-----|
-| Language | TypeScript or Python | — | Claude picks per use case. These two cover 95% of scenarios and have the best AI-generated code quality. |
+| Language | TypeScript (default) | Python (only when needed) | TypeScript for everything unless the use case requires a Python-specific library (ML, data science, wrapping Python-only APIs). |
+| Backend framework (TS) | Hono | Express, NestJS | Minimal, bun-native, Express-like API. NestJS is overkill for internal tools (heavy DI, modules, decorators). |
+| Backend framework (Python) | FastAPI | Flask, Django | Typed, async, auto-generated OpenAPI docs. Only relevant when Python is chosen for the project. |
 | Toolchain (TS) | bun + oxlint + oxfmt + tsgo | npm/yarn + eslint + prettier + tsc | Aligns with `traba-server-node` tooling. Fast, minimal config. |
 | Toolchain (Python) | uv | pip + virtualenv | Single tool replaces pip, pip-tools, virtualenv, and pyenv. |
 | Frontend framework | React + Vite | Next.js | Vite is faster, simpler, and already used in Traba's core frontend. No SSR needed for internal tools. |
@@ -17,8 +19,7 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | Monorepo | bun workspaces | pnpm + Turborepo | One tool. Operator tools are small — Turborepo/Nx add complexity for no benefit at this scale. |
 | Database | Supabase | Neon | Supabase's abstraction layer is its strength here — dashboard UI, auto-generated REST APIs, built-in auth. Non-engineers can manage data without SQL. |
 | ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Supabase). Migration tooling built in. |
-| Backend deploy | Railway | Render | Best developer experience for fast deploys. One-click templates, Nixpacks auto-detection, GitHub auto-deploy. |
-| Frontend deploy | Cloudflare Pages | Vercel | Free unlimited bandwidth, free unlimited sites. No credit card. Preview deploys on PRs out of the box. |
+| Deploy | Railway (backend serves frontend) | Render | Single service: backend builds + serves frontend as static files. Avoids Nixpacks monorepo confusion. Use `railway.json` for explicit build/start. Even frontend-only apps use Railway with a minimal static server. |
 | Auth (shared apps) | Cloudflare Zero Trust | Google OAuth | Free for up to 50 users. Email-domain restriction (`@traba.work`) with magic link OTP. No IdP setup required. |
 | Secrets | Infisical | Doppler | Already in use at Traba. Dashboard UI for non-technical users, RBAC, audit logs, `infisical run` for deployment. |
 | Version control | GitHub | — | Existing Traba infrastructure. |
@@ -52,6 +53,26 @@ The project-setup skill handles this so new projects get the right toolchain aut
 
 ---
 
+## Language: TypeScript by Default
+
+**TypeScript for everything unless the use case requires a Python-specific library.** Both languages have excellent AI-generated code quality, but TypeScript is the default because the entire stack (bun, Hono, React, Vite, Prisma) is TypeScript. Using one language across frontend, backend, and shared types eliminates context-switching and lets `packages/shared/` work seamlessly.
+
+**When to use Python:** Only when the project requires a library that doesn't exist in the TypeScript ecosystem — primarily ML/data science (pandas, numpy, scikit-learn, torch) or wrapping a Python-only API. If you're unsure, use TypeScript.
+
+---
+
+## Backend Framework: Hono (TS) / FastAPI (Python)
+
+**Why Hono:** Minimal, bun-native, Express-like API. A Hono backend for a typical internal tool is a single file with a few routes. It has built-in `serveStatic` for bun, which is exactly what the Railway deployment pattern needs (backend serves frontend).
+
+**Why not NestJS:** Traba's production backend (`traba-server-node`) uses NestJS, but Nest is designed for large teams and complex domains — dependency injection, modules, guards, interceptors, decorators. For a 3-5 endpoint internal tool, Nest generates 10 files of boilerplate for something that should be 1. Prometheus apps never promote by copying code (they promote by spec extraction), so matching the production framework doesn't save work.
+
+**Why not Express:** Legacy API design, no native bun support (needs adapter), no built-in TypeScript types. Hono is the modern equivalent with a nearly identical API surface.
+
+**Python equivalent — FastAPI:** When Python is chosen for a project, FastAPI is the framework. Typed (Pydantic models), async by default, auto-generated OpenAPI docs. Flask is simpler but untyped; Django is overkill for the same reasons as NestJS.
+
+---
+
 ## Frontend: React + Vite
 
 **Why React:** Matches Traba's core frontend (`~/workspace/traba`). Largest ecosystem for AI-generated code quality. Operators can reference existing Traba patterns.
@@ -73,8 +94,8 @@ The project-setup skill handles this so new projects get the right toolchain aut
 ```
 my-project/
   apps/
-    web/          # React + Vite → Cloudflare Pages
-    api/          # TypeScript server → Railway
+    web/          # React + Vite (built and served by api/)
+    api/          # Hono backend → Railway
   packages/
     shared/       # Shared types, schemas, constants
   package.json    # bun workspace root
@@ -86,7 +107,7 @@ my-project/
 
 **Type sharing:** Export `.ts` files directly from `packages/shared/` (live types). No build step for internal packages — the consuming app's bundler handles transpilation. Use `workspace:*` protocol for internal dependencies.
 
-**Deployment from a monorepo:** Railway and Cloudflare Pages both support monorepos. Configure each service to watch its own directory (`apps/api/` or `apps/web/`) plus `packages/shared/`. Changes to shared code trigger rebuilds on both sides. Frontend-only changes don't redeploy the backend.
+**Deployment from a monorepo:** Everything deploys to Railway as a single service. The backend builds the frontend and serves it as static files. This avoids Nixpacks auto-detection confusion in monorepos (Railway can't tell which app to build when it sees multiple `package.json` files). A `railway.json` at the repo root makes the build/start commands explicit. Even frontend-only projects use Railway with a minimal static file server.
 
 ---
 
@@ -117,7 +138,7 @@ When a project needs structured database access beyond simple queries, use Prism
 
 ---
 
-## Backend Deployment: Railway
+## Deployment: Railway
 
 **Why Railway:**
 Railway has the best developer experience for going from zero to deployed. Template marketplace (650+ templates), GitHub integration with auto-deploy on push, and Nixpacks auto-detection that builds without a Dockerfile. For non-technical users, the template marketplace is the killer feature — no CLI or config files needed.
@@ -133,7 +154,7 @@ Railway has the best developer experience for going from zero to deployed. Templ
 
 **Limitations to know about:**
 - No permanent free tier — apps die after trial
-- Nixpacks breaks on non-standard setups (workaround: custom Dockerfiles, which defeats simplicity)
+- Nixpacks auto-detection breaks on monorepos — always use `railway.json` with explicit build/start commands
 - Built-in env var management is basic — use Infisical for anything sensitive
 - Scaling ceiling for sustained high load (fine for internal tools)
 - Some reliability concerns — January 2026 multi-day GitHub auth failures ([Railway incident report](https://blog.railway.com/p/incident-report-january-26-2026))
@@ -147,30 +168,13 @@ Railway has the best developer experience for going from zero to deployed. Templ
 
 ---
 
-## Frontend: Cloudflare Pages
-
-**Why Cloudflare Pages:**
-Free unlimited sites, free unlimited bandwidth, free unlimited static asset requests, 500 builds/month. No credit card required, commercial use allowed. For a static internal tool (dashboard, admin panel), this is effectively zero cost forever.
-
-**Pricing:**
-- Free: Unlimited everything that matters for static sites
-- Workers Paid ($5/mo): Adds Pages Functions (serverless compute)
-- [Cloudflare Pages pricing](https://developers.cloudflare.com/pages/functions/pricing/)
-
-**Deployment:** Git-based deploy from GitHub — push to a branch and it auto-deploys. First-class support for React, Next.js, Vue, Svelte, Astro. Preview deployments on every PR.
-
-**References:**
-- [Cloudflare Pages](https://pages.cloudflare.com/)
-
----
-
 ## Auth: Cloudflare Zero Trust (Access)
 
 **Why Cloudflare Access over roll-your-own OAuth:**
 Zero setup complexity for the user. Sits in front of the app as a reverse proxy — when someone hits the URL, they authenticate before the request reaches the origin. Built-in One-Time PIN provider means no external IdP setup required.
 
 **How it works for Traba:**
-1. Deploy app to Cloudflare Pages (or tunnel to Railway backend)
+1. Deploy app to Railway
 2. Create an Access Application pointing to the app's domain
 3. Add policy: Include = "Emails ending in @traba.work", Login method = One-time PIN
 4. Users visit the app, enter their `@traba.work` email, get a 6-digit code, and they're in
@@ -210,16 +214,15 @@ Already in use at Traba. Dashboard UI that non-technical users can navigate (vie
 
 ```
 Infisical (source of truth)
-  ├── infisical run -- node server.js    (Railway: runtime injection)
-  ├── Secret Sync → Supabase Edge Funcs  (automatic push)
-  └── Secret Sync → Cloudflare Workers   (automatic push)
+  ├── infisical run -- bun run start     (Railway: runtime injection)
+  └── Secret Sync → Supabase Edge Funcs  (automatic push)
 ```
 
 Non-engineers never touch secrets directly. The flow:
 1. Engineer creates an Infisical project for the app
 2. Engineer adds required secrets (API keys, DB URLs)
 3. App's start command uses `infisical run --env=production --token=$INFISICAL_TOKEN -- <command>`
-4. Secrets are injected as env vars at runtime, never stored in Railway/Cloudflare
+4. Secrets are injected as env vars at runtime, never stored in Railway
 
 **Access control for citizen developers:**
 - Read-only dashboard access to their project's dev/staging environments
@@ -230,7 +233,6 @@ Non-engineers never touch secrets directly. The flow:
 **References:**
 - [Infisical secrets management overview](https://infisical.com/docs/documentation/platform/secrets-mgmt/overview)
 - [Infisical CLI / `infisical run`](https://infisical.com/docs/cli/usage)
-- [Infisical Cloudflare Workers sync](https://infisical.com/docs/integrations/secret-syncs/cloudflare-workers)
 - [Infisical Supabase integration](https://infisical.com/docs/integrations/cloud/supabase)
 
 ---
