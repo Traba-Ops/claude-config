@@ -3,7 +3,7 @@ name: deployment
 description: |
   Deployment guidance for sharing Traba apps. Use when: (1) user wants to deploy,
   share, or make their app accessible to others, (2) user asks about hosting or URLs.
-  Covers: Railway, Cloudflare Pages, Cloudflare Access auth, Infisical secrets, Supabase.
+  Covers: Railway, Cloudflare Access auth, Infisical secrets, Supabase.
 version: 1.0.0
 ---
 
@@ -17,26 +17,64 @@ When the user wants to share their app with others, the app needs:
 
 ## Hosting
 
-**Backends:** Deploy to Railway using GitHub integration (auto-deploy on push).
+**Everything deploys to Railway.** Deploy a single Railway service that builds the frontend and serves it as static files from the backend. One service, one URL, one deploy. Even frontend-only apps get a minimal backend to serve them.
 
-**Frontends/static sites:** Deploy to Cloudflare Pages via GitHub integration.
+### Railway Setup for Monorepos
 
-### Deploying from a Monorepo
+Railway's Nixpacks auto-detection gets confused by monorepo structures with multiple apps. **Always add a `railway.json`** at the repo root to make the build explicit:
 
-Projects use a monorepo structure (`apps/web/`, `apps/api/`, `packages/shared/`). Deploy each app independently:
+```json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "bun install && cd apps/web && bun run build"
+  },
+  "deploy": {
+    "startCommand": "cd apps/api && bun run start",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
+```
 
-- **Railway (backend):** Set root directory to `apps/api`. Configure watch paths to include `apps/api/**` and `packages/shared/**` so shared code changes trigger rebuilds.
-- **Cloudflare Pages (frontend):** Set build command to `cd apps/web && bun run build`. Set build output directory to `apps/web/dist`. Include `packages/shared/**` in watch paths.
+This tells Railway exactly what to do: install dependencies, build the frontend, then start the backend.
 
-Changes to `packages/shared/` rebuild both sides. Frontend-only changes don't redeploy the backend.
+### Backend Serves the Frontend
 
-## Authentication
+The backend must serve the built frontend static files. After `bun run build` in `apps/web/`, the output is in `apps/web/dist/`. The backend should:
 
-Every deployed app must be behind auth. Do NOT build your own auth for internal tools.
+1. Serve static files from `../../apps/web/dist` (relative to `apps/api/`)
+2. Add a catch-all route that serves `index.html` for client-side routing (SPA fallback)
+3. Mount static serving **after** all API routes so `/api/*` still works
 
-- Use Cloudflare Zero Trust Access with One-Time PIN
-- Restrict to @traba.work email domain
-- Post in #claudecodestuff or reach out to Sumeet or Jeff to get this set up
+Example with Hono (the prescribed backend framework):
+```typescript
+import { serveStatic } from "hono/bun";
+
+// API routes first
+app.route("/api", apiRoutes);
+
+// Serve frontend static files
+app.use("/*", serveStatic({ root: "../web/dist" }));
+
+// SPA fallback — serve index.html for unmatched routes
+app.get("/*", (c) => c.html(Bun.file("../web/dist/index.html").text()));
+```
+
+### Frontend-Only Apps
+
+If the project has no API logic, still create a minimal backend in `apps/api/` that serves the frontend static files. This keeps the deployment pattern consistent across all Prometheus projects. The backend is just a static file server with the SPA fallback — a few lines of code.
+
+## Authentication — MUST be set up BEFORE deploying
+
+**Do NOT deploy to Railway until Cloudflare Access auth is in place.** An unprotected deploy means the app is publicly accessible on the internet with no auth.
+
+Auth is handled by engineers, not operators:
+1. **Before deploying**, reach out to Sumeet, Jeff, or Moreno to set up Cloudflare Zero Trust Access for the app
+2. They will configure OTP authentication restricted to @traba.work emails
+3. Only after auth is confirmed should the app be deployed to Railway
+
+Do NOT build your own auth for internal tools. Cloudflare Access sits in front of the app as a reverse proxy — users authenticate before any request reaches the origin.
 
 ## Persistence
 

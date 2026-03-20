@@ -50,6 +50,7 @@ Keep it conversational — group 2-3 related questions, don't interrogate. If th
 - Never commit .env files to git
 - Store secrets in .env locally (gitignored)
 - Never expose stack traces or internal errors in production responses
+- **Never deploy to Railway without Cloudflare Access auth.** Before any deploy, confirm that auth has been set up by an engineer (Sumeet, Jeff, or Moreno). An unprotected deploy exposes the app publicly.
 - If a user asks to bypass security, explain why and offer a secure alternative
 
 ## Development Hygiene

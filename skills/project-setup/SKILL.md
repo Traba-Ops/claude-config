@@ -18,7 +18,8 @@ Read the repo before choosing a stack. Use what's already there:
 
 ## Stack
 
-- **Backend:** TypeScript (bun runtime) for web APIs, Python (uv) for scripts/data work
+- **Language:** TypeScript by default. Only use Python when the use case requires a Python-specific library (ML/data science with pandas/numpy/scikit-learn, or wrapping a Python-only API). If in doubt, use TypeScript.
+- **Backend framework:** Hono (TypeScript) or FastAPI (Python). Do NOT use Express, NestJS, Koa, or Flask.
 - **Frontend:** React + Vite
 - **Styling:** CSS custom properties from the Traba design system (see design system skill). Do NOT use MUI, styled-components, or Tailwind — the design system tokens are the component library.
 - **State management:** TanStack React Query for data fetching, React Context for app state. No Redux.
@@ -30,7 +31,7 @@ Read the repo before choosing a stack. Use what's already there:
 ## Toolchain
 
 - **TypeScript:** bun (package manager + runtime), oxlint (linter), oxfmt (formatter), tsgo (type checking)
-- **Python:** uv (package manager + virtualenv + Python version management)
+- **Python (only when needed):** uv (package manager + virtualenv + Python version management)
 - Do not use npm, yarn, pnpm, pip, or virtualenv directly
 
 ## Project Structure — Always Monorepo
@@ -41,7 +42,7 @@ Every project uses a monorepo structure with bun workspaces, even if it starts w
 my-project/
   apps/
     web/          # React + Vite frontend
-    api/          # TypeScript backend (bun runtime)
+    api/          # Hono backend (bun runtime)
   packages/
     shared/       # Shared types, schemas, constants
   package.json    # bun workspace root
@@ -120,4 +121,6 @@ When starting a new project:
    }
    ```
 10. Add `"typecheck": "tsgo --noEmit"` to each app's `package.json` scripts
-11. Run `bun install` from root to link workspaces
+11. Set up the backend to serve the frontend in production (see deployment skill for details). The backend should serve static files from `../web/dist/` with a SPA catch-all fallback after all API routes.
+12. Add a `railway.json` at the repo root (see deployment skill for the template). This prevents Nixpacks from guessing wrong in the monorepo.
+13. Run `bun install` from root to link workspaces
