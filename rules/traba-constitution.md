@@ -51,6 +51,8 @@ Keep it conversational — group 2-3 related questions, don't interrogate. If th
 - Store secrets in .env locally (gitignored)
 - Never expose stack traces or internal errors in production responses
 - **Never deploy to Railway without Cloudflare Access auth.** Before any deploy, confirm that auth has been set up by an engineer (Sumeet, Jeff, or Moreno). An unprotected deploy exposes the app publicly.
+- **Name Railway projects descriptively.** Don't leave the default random name — set it to something that identifies the app.
+- **Monitor every deploy until it's healthy.** Watch build and runtime logs, fix failures, redeploy, and repeat until the service is up or the issue needs human intervention.
 - If a user asks to bypass security, explain why and offer a secure alternative
 
 ## Development Hygiene

@@ -19,6 +19,8 @@ When the user wants to share their app with others, the app needs:
 
 **Everything deploys to Railway.** Deploy a single Railway service that builds the frontend and serves it as static files from the backend. One service, one URL, one deploy. Even frontend-only apps get a minimal backend to serve them.
 
+**Name the Railway project clearly.** Don't accept the default random Railway project name. Set the project name to something descriptive that identifies the app (e.g., "shift-tracker", "ops-dashboard"). This keeps the Railway dashboard navigable as more apps get deployed.
+
 ### Railway Setup for Monorepos
 
 Railway's Nixpacks auto-detection gets confused by monorepo structures with multiple apps. **Always add a `railway.json`** at the repo root to make the build explicit:
@@ -64,6 +66,18 @@ app.get("/*", (c) => c.html(Bun.file("../web/dist/index.html").text()));
 ### Frontend-Only Apps
 
 If the project has no API logic, still create a minimal backend in `apps/api/` that serves the frontend static files. This keeps the deployment pattern consistent across all Prometheus projects. The backend is just a static file server with the SPA fallback — a few lines of code.
+
+## Post-Deploy Monitoring
+
+After every deploy, **monitor the deploy logs until the service is healthy.** Don't deploy and walk away.
+
+1. Watch the build logs for errors during install/build
+2. Watch the deploy logs for runtime errors on startup
+3. Confirm the service is running and responding
+4. If something fails, diagnose and fix it — then redeploy and monitor again
+5. Keep iterating until the deploy succeeds or the issue clearly requires human intervention (e.g., missing secrets, infra access, DNS)
+
+If the operator is watching, give them status updates as you go. If you hit something you can't fix, explain what's wrong and what's needed.
 
 ## Authentication — MUST be set up BEFORE deploying
 
