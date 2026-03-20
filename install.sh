@@ -15,6 +15,17 @@ if ! command -v git &> /dev/null; then
   exit 1
 fi
 
+# Ensure git identity is configured (needed for checkpoints)
+if [ -z "$(git config --global user.name)" ] || [ -z "$(git config --global user.email)" ]; then
+  echo "Git identity not configured. Run these first:"
+  echo ""
+  echo "  git config --global user.name 'Your Name'"
+  echo "  git config --global user.email 'your.email@traba.work'"
+  echo ""
+  echo "Then re-run this script."
+  exit 1
+fi
+
 # Clean up any interrupted previous install
 rm -rf "$TEMP_DIR"
 

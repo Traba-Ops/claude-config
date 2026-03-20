@@ -18,7 +18,14 @@ The natural course is: you build something, others want it, it gets deployed, an
 
 Before your first project, you need the Traba skills installed. You install once, and updates pull automatically in the background.
 
-Open Terminal and run:
+First, make sure git knows who you are (needed for checkpoints later):
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your.email@traba.work"
+```
+
+Then run the installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Traba-Ops/claude-config/main/install.sh | sh
