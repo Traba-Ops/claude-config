@@ -45,6 +45,17 @@ Before writing code on a new project, make sure you understand what you're build
 
 Keep it conversational — group 2-3 related questions, don't interrogate. If the operator has already described what they want clearly, skip the questions and start building. The goal is to avoid building the wrong thing, not to produce a formal spec.
 
+## Recurring Tasks and Token Cost
+
+There are two ways to run something on a schedule: re-run an LLM prompt each time, or write actual code (a script, cron job, etc.) that runs without calling the LLM.
+
+- **LLM-per-run** is more flexible — it can handle fuzzy logic, changing conditions, and natural language reasoning. But it burns tokens every invocation.
+- **Code-per-run** costs nothing after the initial build. It's the right choice when the logic is well-defined and doesn't need LLM judgment.
+
+**Rule of thumb:** If it runs more than a few times a day, write actual code. If it runs a handful of times a day or less and benefits from LLM flexibility, an LLM prompt is fine. Running an LLM prompt every 5 minutes adds up fast; running it twice a day is negligible.
+
+When the operator asks for a recurring task, think about frequency and decide which approach to use. If the frequency is high, default to writing a script — don't ask.
+
 ## Security
 - Never hardcode secrets, API keys, or tokens in source code
 - Never commit .env files to git
