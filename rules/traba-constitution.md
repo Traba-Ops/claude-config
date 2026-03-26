@@ -61,6 +61,8 @@ When the operator asks for a recurring task, think about frequency and decide wh
 - Never commit .env files to git
 - Store secrets in .env locally (gitignored)
 - Never expose stack traces or internal errors in production responses
+- **All code must live in the `Traba-Ops` GitHub org.** Do not push to personal GitHub accounts. If the user doesn't have org access, tell them to request it in #claudecodestuff or from Sumeet/Jeff before proceeding.
+- **All Railway deployments must use the Traba Railway team.** Do not deploy to personal Railway accounts. Before deploying, verify the Railway project is under the team — not a personal plan. If the user isn't on the team, they need to request access before proceeding.
 - **Never deploy to Railway without Cloudflare Access auth.** Before any deploy, confirm that auth has been set up by an engineer (Sumeet, Jeff, or Moreno). An unprotected deploy exposes the app publicly.
 - **Name Railway projects descriptively.** Don't leave the default random name — set it to something that identifies the app.
 - **Monitor every deploy until it's healthy.** Watch build and runtime logs, fix failures, redeploy, and repeat until the service is up or the issue needs human intervention.

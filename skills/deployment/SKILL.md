@@ -17,7 +17,9 @@ When the user wants to share their app with others, the app needs:
 
 ## Hosting
 
-**Everything deploys to Railway.** Deploy a single Railway service that builds the frontend and serves it as static files from the backend. One service, one URL, one deploy. Even frontend-only apps get a minimal backend to serve them.
+**Everything deploys to Railway under the Traba Railway team.** Deploy a single Railway service that builds the frontend and serves it as static files from the backend. One service, one URL, one deploy. Even frontend-only apps get a minimal backend to serve them. **Do not deploy to personal Railway accounts.** Before deploying, verify the project is under the Traba team — not a personal plan. If the user isn't on the team, they need to request access in #claudecodestuff or from Sumeet/Jeff before proceeding.
+
+**The repo must be in the `Traba-Ops` GitHub org.** Railway's GitHub integration should connect to the `Traba-Ops` org repo, not a personal fork or personal GitHub repo. If the code isn't in `Traba-Ops` yet, push it there first before setting up Railway auto-deploy.
 
 **Name the Railway project clearly.** Don't accept the default random Railway project name. Set the project name to something descriptive that identifies the app (e.g., "shift-tracker", "ops-dashboard"). This keeps the Railway dashboard navigable as more apps get deployed.
 
