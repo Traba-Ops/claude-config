@@ -58,7 +58,7 @@ Claude will handle most of the technical complexity, but you should be familiar 
 
 - **Secrets:** API keys, passwords, and tokens that connect your app to other services. These should never be shared, pasted in Slack, or put directly in code. When your app needs a secret, an engineer will set it up for you. [^2]
 
-- **Deploying:** Making your app available at a URL so other people can use it. Your app starts by running only on your machine. When others want access, post in **#claudecodestuff** or reach out to Sumeet or Jeff directly. [^3]
+- **Deploying:** Making your app available at a URL so other people can use it. Your app starts by running only on your machine. When others want access, post in **#claudecodestuff** or reach out to Sumeet or Jeff directly. Engineers: see the [eng runbook](docs/eng-runbook.md). [^3]
 
 - **The Spec:** As you build, Claude keeps two documents up to date: a README that explains what your app does and how to use it, and a spec with the technical details an engineer would need to rebuild it. You don't write either one.
 
@@ -70,6 +70,8 @@ The pipeline assumes a handoff between operators and engineers. But we're alread
 
 | Document | Purpose |
 |----------|---------|
+| [Eng Runbook](docs/eng-runbook.md) | Step-by-step: getting an operator from zero to deployed |
+| [Admin Operations](docs/admin.md) | Automated maintenance, access provisioning, cost tracking |
 | [Prescriptive Stack](docs/stack.md) | What to use and why — the full technology prescription |
 | [Security Guardrails](docs/security.md) | Hard checks, SDLC controls, and infrastructure-level protections |
 | [Promotion Pipeline](docs/pipeline.md) | How projects move from prototype to production, and how specs accumulate |
@@ -82,6 +84,6 @@ The pipeline assumes a handoff between operators and engineers. But we're alread
 
 [^1]: **How checkpoints work.** Under the hood, Claude uses **git**. Each checkpoint is a **commit** — a snapshot of every file in your project at that moment, with a message describing what changed. Commits form a timeline you can jump back to at any point.
 
-[^2]: **Why secrets matter.** An API key is like a password that lets your app talk to another service (a database, a payment processor, an AI model). If someone gets your API key, they can use that service as you — reading your data, running up your bill, or worse. Secrets go in a secure vault (we use Infisical), never in code, never in Slack, never in a document.
+[^2]: **Why secrets matter.** An API key is like a password that lets your app talk to another service (a database, a payment processor, an AI model). If someone gets your API key, they can use that service as you — reading your data, running up your bill, or worse. Secrets go in Railway environment variables for deployed apps and `.env` files locally, never in code, never in Slack, never in a document.
 
 [^3]: **What deployment means.** When your app runs on `localhost`, that literally means "this computer" — nobody else can see it. Deploying copies your app to a server in the cloud (we use Railway) that runs it 24/7 and gives it a URL. We put an authentication layer in front (Cloudflare Zero Trust) so only people with a `@traba.work` email can access it.

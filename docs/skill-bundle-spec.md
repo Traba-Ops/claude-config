@@ -13,19 +13,21 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Constitution** | Role, principles, requirements gathering, security, development hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
 | **Project documentation** | README + SPEC.md, decision records | `~/.claude/rules/traba-spec.md` (always active) |
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
-| **Deployment** | Railway, Cloudflare, Supabase, Infisical | `~/.claude/skills/deployment/` (loaded when relevant) |
+| **Deployment** | Railway, Cloudflare Access, Supabase | `~/.claude/skills/deployment/` (loaded when relevant) |
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
 
 ```bash
-git clone https://github.com/Traba-Ops/claude-config.git ~/.traba-config
-cp -r ~/.traba-config/skills/* ~/.claude/skills/
-cp -r ~/.traba-config/rules/* ~/.claude/rules/
+curl -fsSL https://raw.githubusercontent.com/Traba-Ops/claude-config/main/install.sh | sh
 ```
 
-**How updates propagate:** Engineers commit to the repo. A launchd job (twice daily, 10 AM and 7 PM) runs `git pull` and copies updated files into `~/.claude/`. No manual pulling, no external tooling.
+The installer clones the repo, copies skills + rules into `~/.claude/`, and sets up git tracking. The operator then sets up auto-updates in Claude Code:
+
+> "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
+
+**How updates propagate:** Engineers commit to the repo. Each operator's launchd job runs `git pull` hourly during working hours, pulling updated skills and rules automatically.
 
 ---
 
@@ -81,7 +83,7 @@ Includes `.gitignore` and `.pre-commit-config.yaml` as reference files — Claud
 
 **Trigger:** User wants to deploy, share, or make their app accessible to others.
 
-Covers the full Tier 2 stack: Railway for backends (auto-deploy on push), Cloudflare Pages for frontends, Cloudflare Zero Trust for auth (@traba.work email restriction), Supabase for shared persistence, and Infisical for production secrets (`infisical run` in Railway start command).
+Covers the full Tier 2 stack: Railway (single service: backend serves frontend as static files, auto-deploy on push), Cloudflare Zero Trust for auth (@traba.work email restriction), Supabase for shared persistence, and Railway environment variables for secrets.
 
 ### Design System
 
@@ -91,13 +93,13 @@ Applies the full Traba design system: colors (violet primary, midnight text), fo
 
 Single-file skill (~620 lines): critical rules at top, then all tokens, components, layouts, interactivity, data visualization, and content guidelines in build order.
 
-### Data Access (Traba MCP) — Coming Soon
+### Data Access — Coming Soon
 
 **Trigger:** User needs Traba business data (rates, shifts, workers, etc.).
 
-Will cover: Traba MCP tools for all data access, BigQuery RBAC for access control, and the Traba data ontology for business definitions (rates, shift types, compliance rules). No direct production database connections.
+Will cover: BigQuery access via a token store pattern (using authenticated user OAuth tokens), data ontology for business definitions, and access control. A standardized approach is in progress — see [open questions](open-questions.md#3-data-access-layer-for-prometheus-apps-bigquery--token-store).
 
-Blocked on ontology and MCP tools from Charles, Javi, and Jeremy.
+Until this skill ships, operators use workarounds: nightly data pulls to local files or direct BQ queries with a service account.
 
 ---
 
@@ -116,7 +118,7 @@ Skills are guidance, not enforcement. Things that MUST be enforced outside of Cl
 
 ## Maintenance
 
-Skills are version-controlled in the `traba-ops/claude-skills` repo. Engineers commit changes, skillshare propagates them.
+Skills are version-controlled in the [`Traba-Ops/claude-config`](https://github.com/Traba-Ops/claude-config) repo. Engineers commit changes, and operator launchd jobs pull them automatically.
 
 **When to update:**
 - A new failure mode is discovered

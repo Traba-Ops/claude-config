@@ -21,7 +21,7 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Supabase). Migration tooling built in. |
 | Deploy | Railway (backend serves frontend) | Render | Single service: backend builds + serves frontend as static files. Avoids Nixpacks monorepo confusion. Use `railway.json` for explicit build/start. Even frontend-only apps use Railway with a minimal static server. |
 | Auth (shared apps) | Cloudflare Zero Trust | Google OAuth | Free for up to 50 users. Email-domain restriction (`@traba.work`) with magic link OTP. No IdP setup required. |
-| Secrets | Infisical | Doppler | Already in use at Traba. Dashboard UI for non-technical users, RBAC, audit logs, `infisical run` for deployment. |
+| Secrets | Railway environment variables | Infisical, Doppler | Simplest option — no extra tooling. Railway dashboard is accessible to operators. Secrets stay in the deployment platform where they're used. |
 | Version control | GitHub | — | Existing Traba infrastructure. |
 
 ---
@@ -155,7 +155,7 @@ Railway has the best developer experience for going from zero to deployed. Templ
 **Limitations to know about:**
 - No permanent free tier — apps die after trial
 - Nixpacks auto-detection breaks on monorepos — always use `railway.json` with explicit build/start commands
-- Built-in env var management is basic — use Infisical for anything sensitive
+- Built-in env var management is sufficient for current scale — consider Infisical if audit logging becomes a requirement
 - Scaling ceiling for sustained high load (fine for internal tools)
 - Some reliability concerns — January 2026 multi-day GitHub auth failures ([Railway incident report](https://blog.railway.com/p/incident-report-january-26-2026))
 
@@ -199,41 +199,24 @@ Zero setup complexity for the user. Sits in front of the app as a reverse proxy 
 
 ---
 
-## Secrets: Infisical
+## Secrets: Railway Environment Variables
 
-**Why Infisical:**
-Already in use at Traba. Dashboard UI that non-technical users can navigate (view secrets per their permissions), RBAC with per-project and per-environment isolation, and `infisical run` for injecting secrets at runtime without storing them in the deployment platform.
-
-**Pricing:**
-- Free: Core secrets management, limited users/projects
-- Pro (~$8-9/user/mo): RBAC, audit logs, more integrations
-- Enterprise: SSO/SAML, SOC 2, HIPAA
-- [Infisical pricing](https://infisical.com/pricing)
+**Why Railway env vars over a dedicated secrets manager (Infisical, Doppler):**
+Simplest option for the scale we're at. Railway's dashboard is accessible to operators, secrets stay in the deployment platform where they're used, and there's no extra tooling to install or manage. Railway env vars are encrypted at rest and injected at runtime.
 
 **How secrets flow in Prometheus:**
 
 ```
-Infisical (source of truth)
-  ├── infisical run -- bun run start     (Railway: runtime injection)
-  └── Secret Sync → Supabase Edge Funcs  (automatic push)
+.env (local development, gitignored)
+Railway Variables (production, set in dashboard)
+  └── injected as process.env.* at runtime
 ```
 
-Non-engineers never touch secrets directly. The flow:
-1. Engineer creates an Infisical project for the app
-2. Engineer adds required secrets (API keys, DB URLs)
-3. App's start command uses `infisical run --env=production --token=$INFISICAL_TOKEN -- <command>`
-4. Secrets are injected as env vars at runtime, never stored in Railway
+1. Operator stores secrets in `.env` locally for development
+2. For deployed apps, add secrets in Railway project → Variables
+3. App reads them via `process.env.SECRET_NAME` or `Bun.env.SECRET_NAME`
 
-**Access control for citizen developers:**
-- Read-only dashboard access to their project's dev/staging environments
-- No access to production secrets
-- No CLI or API permissions unless explicitly granted
-- Approval workflow for adding/changing production secrets
-
-**References:**
-- [Infisical secrets management overview](https://infisical.com/docs/documentation/platform/secrets-mgmt/overview)
-- [Infisical CLI / `infisical run`](https://infisical.com/docs/cli/usage)
-- [Infisical Supabase integration](https://infisical.com/docs/integrations/cloud/supabase)
+**When to consider a dedicated secrets manager:** If Prometheus apps start sharing secrets across multiple services, or if audit logging of secret access becomes a requirement, consider migrating to Infisical (already in use at Traba for the core product).
 
 ---
 

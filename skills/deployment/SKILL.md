@@ -3,7 +3,7 @@ name: deployment
 description: |
   Deployment guidance for sharing Traba apps. Use when: (1) user wants to deploy,
   share, or make their app accessible to others, (2) user asks about hosting or URLs.
-  Covers: Railway, Cloudflare Access auth, Infisical secrets, Supabase.
+  Covers: Railway, Cloudflare Access auth, Railway env vars for secrets, Supabase.
 version: 1.0.0
 ---
 
@@ -101,7 +101,7 @@ When the app needs shared data across users, switch from SQLite to Supabase:
 
 ## Secrets
 
-- All secrets go in Infisical for deployed apps
-- Use `infisical run` in the Railway start command to inject secrets at runtime
-- Never store secrets in Railway environment variables directly
-- Never hardcode API keys, database URLs, or auth tokens
+- Store secrets as **Railway environment variables** in the project settings
+- The app reads them via `process.env.SECRET_NAME` (or `Bun.env.SECRET_NAME`)
+- Store secrets in `.env` locally (gitignored) for development — Railway env vars are only for production
+- Never hardcode API keys, database URLs, or auth tokens in source code

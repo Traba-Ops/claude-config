@@ -107,7 +107,7 @@ For projects that eventually need more rigor (high traffic, sensitive data), bra
 | **No production DB access** | Citizen developers never get production connection strings. Read replicas or API gateways only. |
 | **Scoped API keys** | Every key issued has narrowest possible permissions and hard rate limits. |
 | **Billing alerts** | Cloud billing alerts at 50%, 80%, 100% of budget on all accounts. Non-negotiable. |
-| **Infisical RBAC** | Non-engineers get read-only dashboard access to dev/staging. No production secrets. No CLI/API access. |
+| **Railway env var isolation** | Each Railway project has its own environment variables. Operators can view/edit variables for their own projects only. |
 | **Environment isolation** | Supabase projects for citizen dev apps are separate from production Supabase. Separate Railway projects. |
 | **Network isolation** | Citizen-developed apps cannot directly access production data stores. Use the Traba MCP data layer (BigQuery RBAC). |
 
@@ -185,8 +185,8 @@ For this scale (< 20 users, internal tools), a full incident response plan is ov
 
 ### Leaked secret detected
 
-1. **Immediately rotate** the compromised credential in Infisical
-2. Review Infisical audit logs for unauthorized access during exposure window
+1. **Immediately rotate** the compromised credential in Railway project variables (and at the source provider)
+2. Review the provider's usage dashboard for unauthorized access during exposure window
 3. If an API key: check the provider's usage dashboard for anomalous activity
 4. Add the secret pattern to GitHub push protection custom patterns if it wasn't caught
 

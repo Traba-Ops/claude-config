@@ -48,12 +48,12 @@ Most of the setup can be done by the operator with Claude. Engineers provide acc
 2. **What the operator does (with Claude):**
    - Create a GitHub repo in the `traba-ops` org
    - Push the code
-   - Deploy to Railway (backend) and/or Cloudflare Pages (frontend)
+   - Deploy to Railway (single service: backend serves frontend as static files)
 
 3. **What an engineer does:**
-   - Grant access to Railway, Cloudflare, and Supabase (if needed)
+   - Grant access to Railway and Supabase (if needed)
    - Quick review of the code for obvious security issues
-   - Create Infisical project and add secrets
+   - Add secrets as Railway environment variables
    - Configure Cloudflare Access (email domain restriction for @traba.work)
 
 4. **Post-setup:**
@@ -113,7 +113,7 @@ That spec is used to rebuild in the core repo with full production standards (co
 ### Engineer (promotion facilitator)
 - Grants access to infrastructure (Railway, Cloudflare, Supabase)
 - Quick security review of the code
-- Sets up secrets (Infisical) and auth (Cloudflare Access)
+- Adds secrets as Railway environment variables and sets up auth (Cloudflare Access)
 
 ### Claude (orchestrator)
 - Enforces the prescriptive stack via skills
