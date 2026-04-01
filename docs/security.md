@@ -107,7 +107,7 @@ For projects that eventually need more rigor (high traffic, sensitive data), bra
 | **No production DB access** | Citizen developers never get production connection strings. Read replicas or API gateways only. |
 | **Scoped API keys** | Every key issued has narrowest possible permissions and hard rate limits. |
 | **Billing alerts** | Cloud billing alerts at 50%, 80%, 100% of budget on all accounts. Non-negotiable. |
-| **Railway env var isolation** | Each Railway project has its own environment variables. Operators can view/edit variables for their own projects only. |
+| **Railway env var isolation** | Railway has no per-project access control — any team Member can view all env vars. Sensitive values must be sealed (see Layer 7). |
 | **Environment isolation** | Supabase projects for citizen dev apps are separate from production Supabase. Separate Railway projects. |
 | **Network isolation** | Citizen-developed apps cannot directly access production data stores. Use the Traba MCP data layer (BigQuery RBAC). |
 
@@ -140,6 +140,39 @@ node_modules/
 __pycache__/
 venv/
 ```
+
+### Layer 7: Secrets classification and sealing
+
+Railway's current plan has no role-based access control — every team Member can view every environment variable on every project. This means any teammate (or a leaked Railway login) can read production API keys, database passwords, and service account credentials in plaintext.
+
+**Primary control: Railway sealed secrets.** Sealing a variable permanently hides its value from the Railway dashboard UI and API while still injecting it at runtime. Once sealed, nobody can read the value back — not in the UI, not via the API, not via the CLI. Seal via the 3-dot menu next to the variable in Railway's dashboard.
+
+For projects that need more rigorous lifecycle management (rotation, audit trail, centralized access control), [Infisical](https://infisical.com/) can be layered on top with the [Railway integration](https://infisical.com/docs/integrations/cloud/railway). This is not required for most Prometheus projects.
+
+#### What to seal
+
+Classify every environment variable by sensitivity. The scoring rubric from the March 2026 Railway security audit uses three dimensions: blast radius, data sensitivity, and scope (highest score wins).
+
+| Score | Classification | Examples | Action |
+|-------|---------------|----------|--------|
+| **5 — Critical** | Meta-secrets, production DB credentials, keys that bypass access controls | GCP service account JSON, Supabase `service_role` key, Postgres passwords, backend signing keys (`NEST_SERVER_PRIVATE_KEY`) | **Must seal.** Rotate quarterly. |
+| **4 — High** | API keys with write access or broad permissions, credentials for external services | Anthropic API keys, Stripe secret keys, Firebase API keys, BigQuery credentials | **Must seal.** Rotate semi-annually. |
+| **2 — Low** | API keys with limited blast radius, non-critical service config | Narrow-scope read-only keys, webhook URLs with built-in auth | **Seal recommended.** |
+| **1 — Minimal** | Non-secret configuration | `PORT`, `NODE_ENV`, `LOG_LEVEL`, `RAILWAY_PUBLIC_DOMAIN`, public URLs, project IDs | **Do not seal.** Plain Railway env vars are fine. |
+
+**Rule of thumb:** if leaking the value would let someone access data, spend money, or impersonate a service, seal it.
+
+#### Sealing gotchas
+
+- **Sealed values cannot be read back.** Before sealing, save the value somewhere else (password manager, Infisical, etc.). You will never retrieve it from Railway again.
+- **Verify the app works before sealing.** Deploy first, confirm the service reads the secret correctly, then seal. Sealing is irreversible — if something is misconfigured, you can't unseal to debug.
+- **Sealed variables are not copied** to PR environments, duplicated services, or new environments. Plan for this if you use Railway's environment features.
+- **Do not seal reference variables** that compose URLs from other variables (e.g., `DATABASE_URL=${{shared.DB_PASSWORD}}`). Seal the atomic secret (`DB_PASSWORD`), keep the template unsealed.
+- **Sealing is UI-only.** There is no CLI or API command to seal. It must be done manually in the Railway dashboard.
+
+#### Dead projects
+
+Revoke secrets on stopped or failed Railway projects immediately. A dead service with live credentials is an unmonitored attack surface. If the project is truly dead, delete it from Railway.
 
 ---
 
@@ -185,10 +218,11 @@ For this scale (< 20 users, internal tools), a full incident response plan is ov
 
 ### Leaked secret detected
 
-1. **Immediately rotate** the compromised credential in Railway project variables (and at the source provider)
-2. Review the provider's usage dashboard for unauthorized access during exposure window
-3. If an API key: check the provider's usage dashboard for anomalous activity
-4. Add the secret pattern to GitHub push protection custom patterns if it wasn't caught
+1. **Immediately rotate** the compromised credential at the source provider
+2. Update the new value in Railway project variables (and Infisical, if the project uses it)
+3. **Seal the new variable** if it wasn't already sealed — the leak likely happened because it was visible in plaintext
+4. Review the provider's usage dashboard for unauthorized access during the exposure window
+5. Add the secret pattern to GitHub push protection custom patterns if it wasn't caught
 
 ### Exposed Supabase database
 

@@ -81,6 +81,7 @@ After every deploy, **monitor the deploy logs until the service is healthy.** Do
 
 If the operator is watching, give them status updates as you go. If you hit something you can't fix, explain what's wrong and what's needed.
 
+
 ## Authentication — MUST be set up BEFORE deploying
 
 **Do NOT deploy to Railway until Cloudflare Access auth is in place.** An unprotected deploy means the app is publicly accessible on the internet with no auth.
@@ -101,7 +102,29 @@ When the app needs shared data across users, switch from SQLite to Supabase:
 
 ## Secrets
 
-- Store secrets as **Railway environment variables** in the project settings
-- The app reads them via `process.env.SECRET_NAME` (or `Bun.env.SECRET_NAME`)
-- Store secrets in `.env` locally (gitignored) for development — Railway env vars are only for production
-- Never hardcode API keys, database URLs, or auth tokens in source code
+- **Never hardcode** API keys, database URLs, or auth tokens in source code
+- Store secrets in `.env` locally (gitignored) for development
+- The app reads them via `process.env.SECRET_NAME` (or `Bun.env.SECRET_NAME`) — same interface in dev and prod
+- In production, store secrets as **Railway environment variables** in the project settings
+
+### Sealing sensitive variables
+
+After deploying an app or adding new env vars, review every variable the app uses and tell the operator which ones need to be sealed for security. Sealing locks a variable so its value is still available to the app but nobody can view it in Railway's dashboard.
+
+**Seal these** — any variable whose value is a credential, key, or password:
+- API keys (Anthropic, Stripe, Firebase, GCP, etc.)
+- Database passwords
+- Service account credentials
+- Signing keys, JWT secrets, private keys
+
+**Don't seal these** — basic configuration that isn't sensitive:
+- `PORT`, `NODE_ENV`, `LOG_LEVEL`
+- `RAILWAY_PUBLIC_DOMAIN`
+- Public URLs, project IDs
+- Feature flags, non-secret config
+
+When instructing the operator to seal variables, tell them:
+1. These variables are sensitive credentials that need to be properly secured — sealing ensures nobody can view them in Railway's dashboard
+2. Write down or save the value somewhere safe first (e.g., a password manager) — once sealed, the value can never be viewed again in Railway
+3. In Railway's dashboard, click the **three-dot menu** next to the variable → **Seal**
+4. The app will keep working as normal — sealing just hides the value from the dashboard
