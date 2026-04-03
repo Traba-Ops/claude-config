@@ -15,7 +15,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
 | **Deployment** | Railway, Cloudflare Access, Supabase | `~/.claude/skills/deployment/` (loaded when relevant) |
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
-| **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
+| **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
 
 **How operators get it:**
 
@@ -93,13 +93,11 @@ Applies the full Traba design system: colors (violet primary, midnight text), fo
 
 Single-file skill (~620 lines): critical rules at top, then all tokens, components, layouts, interactivity, data visualization, and content guidelines in build order.
 
-### Data Access — Coming Soon
+### BigQuery Auth
 
-**Trigger:** User needs Traba business data (rates, shifts, workers, etc.).
+**Trigger:** User needs to query BigQuery data, access Traba business data, or authenticate users for data access.
 
-Will cover: BigQuery access via a token store pattern (using authenticated user OAuth tokens), data ontology for business definitions, and access control. A standardized approach is in progress — see [open questions](open-questions.md#3-data-access-layer-for-prometheus-apps-bigquery--token-store).
-
-Until this skill ships, operators use workarounds: nightly data pulls to local files or direct BQ queries with a service account.
+Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
 
 ---
 
