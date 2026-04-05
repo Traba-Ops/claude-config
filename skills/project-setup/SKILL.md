@@ -43,7 +43,6 @@ my-project/
   apps/
     web/          # React + Vite frontend
     api/          # Hono backend (bun runtime)
-  packages/
     shared/       # Shared types, schemas, constants
   package.json    # bun workspace root
 ```
@@ -54,7 +53,7 @@ my-project/
 {
   "name": "my-project",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": ["apps/*"],
   "scripts": {
     "dev": "bun run --parallel --filter '*' dev",
     "build": "bun run --parallel --filter '*' build",
@@ -66,9 +65,9 @@ my-project/
 
 ### Shared types between frontend and backend
 
-Use live types — export `.ts` files directly from `packages/shared/`. No build step needed for internal packages. The consuming app's bundler handles transpilation.
+Use live types — export `.ts` files directly from `apps/shared/`. No build step needed for internal packages. The consuming app's bundler handles transpilation.
 
-In `packages/shared/package.json`:
+In `apps/shared/package.json`:
 ```json
 {
   "name": "@project/shared",
@@ -98,14 +97,14 @@ cd apps/web && bun add react-router-dom
 
 When starting a new project:
 1. Initialize a git repository
-2. Create the monorepo structure (`apps/web/`, `apps/api/`, `packages/shared/`)
+2. Create the monorepo structure (`apps/web/`, `apps/api/`, `apps/shared/`)
 3. Create root `package.json` with workspaces config
 4. Create a `.gitignore` from the template: [gitignore.template](gitignore.template)
 5. Set up gitleaks as a pre-commit hook from: [pre-commit-config.template](pre-commit-config.template)
 6. Frontend: `cd apps/web && bun create vite . --template react-ts`
 7. Backend: `cd apps/api && bun init`
-8. Shared: create `packages/shared/` with `package.json` and `src/index.ts`
-9. Add `tsconfig.json` to each package (`apps/web/`, `apps/api/`, `packages/shared/`):
+8. Shared: create `apps/shared/` with `package.json` and `src/index.ts`
+9. Add `tsconfig.json` to each package (`apps/web/`, `apps/api/`, `apps/shared/`):
    ```json
    {
      "compilerOptions": {
