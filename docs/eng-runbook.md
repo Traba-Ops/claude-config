@@ -58,9 +58,41 @@ Add them to the **Traba Railway team** — not a personal account. If they alrea
 
 ---
 
-## Step 4: Set Up Cloudflare Auth
+## Step 4: Set Up Auth
 
 **Do this BEFORE they deploy.** An unprotected Railway deploy puts the app on the public internet with no login.
+
+There are two auth methods. **In-app Google OAuth is preferred** — Cloudflare Zero Trust has a hard 50-seat limit across all Traba apps, so it doesn't scale as we add more tools and users.
+
+### Option A: In-App Google OAuth (preferred)
+
+The operator builds auth into the app using the authentication skill. You create the GCP credentials and verify the implementation.
+
+**Create the OAuth Client ID:**
+
+1. Go to [GCP Console](https://console.cloud.google.com/) → **traba-app** project → **APIs & Services → Credentials**
+2. Click **+ Create Credentials → OAuth client ID**
+3. Application type: **Web application**
+4. Name: something descriptive (e.g., `mycelium`, `onboarding-funnel`)
+5. Add **Authorized JavaScript origins**:
+   - `http://localhost:5173` (Vite dev server)
+   - `http://localhost:3000` (backend dev server)
+   - `https://appname.traba.work` (production Cloudflare domain)
+6. Leave **Authorized redirect URIs** empty (not needed for implicit grant)
+7. Copy the **Client ID** and give it to the operator
+
+**Note:** The OAuth consent screen on `traba-app` is already configured as **Internal** (restricted to `traba.work` Workspace). If it weren't, you'd need to set that up first — External would allow any Google account.
+
+**Important:** Do NOT use `gcloud alpha iap oauth-clients create` — those create locked IAP clients that can't have JavaScript origins added. Must use the Console UI.
+
+Give the operator the Client ID. They'll set it as `VITE_GOOGLE_CLIENT_ID` in their `.env.local` and prompt Claude to add auth. Once they've built it, verify:
+- The server checks `hd === "traba.work"` from Google's userinfo API (not client-side)
+- `/api/auth` routes are mounted before `requireAuth` middleware
+- Non-`@traba.work` accounts are rejected
+
+### Option B: Cloudflare Zero Trust (legacy)
+
+Use when in-app auth isn't feasible. No code changes needed — Cloudflare gates the entire app as a reverse proxy.
 
 1. Go to [Cloudflare Zero Trust](https://dash.cloudflare.com/) → Access → Controls → Applications
 2. Click **Add an application** → Self-hosted
@@ -81,7 +113,11 @@ Look at existing apps (`mycelium`, `onboarding-funnel`) as templates.
 
 ## Step 5: Deploy + Connect Domain
 
-Give the operator the green light. Have them prompt:
+**If using in-app Google OAuth (Option A)**, set these Railway env vars before the first deploy:
+- `VITE_GOOGLE_CLIENT_ID` — the Client ID from Step 4 (must be set before first deploy — it's a build-time variable)
+- `SESSION_SECRET` — generate with `openssl rand -hex 32` and **seal it** after setting
+
+Then give the operator the green light. Have them prompt:
 
 > "Deploy my app to Railway"
 
@@ -168,5 +204,6 @@ Ready-made prompts to send the operator. They run these in Claude Code.
 |---------|-----|---------------|
 | GitHub (Traba-Ops) | github.com/Traba-Ops | Any eng with org admin |
 | Railway (Traba team) | railway.com | Any eng on the team |
-| Cloudflare Zero Trust | dash.cloudflare.com | Any eng on the team |
+| GCP OAuth (traba-app) | console.cloud.google.com | Any eng on the project |
+| Cloudflare DNS | dash.cloudflare.com | Any eng on the team |
 | Supabase | supabase.com | Any eng (creates project, shares with operator) |

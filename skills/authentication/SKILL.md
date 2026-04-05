@@ -9,9 +9,22 @@ version: 1.0.0
 
 # Authentication
 
-Google OAuth restricted to `@traba.work` accounts. The frontend handles the Google login popup, the backend verifies the token and issues a session JWT. All security decisions happen server-side.
+Add Google OAuth login restricted to `@traba.work` accounts. The frontend handles the Google login popup, the backend verifies the token and issues a session JWT. All security decisions happen server-side.
 
-**Reference implementation:** [Traba-Ops/prometheus-observatory](https://github.com/Traba-Ops/prometheus-observatory) — see `web/serve.ts`, `web/src/LoginPage.tsx`, and `decisions/` for rationale.
+## Before you start
+
+### Project structure check
+
+Authentication requires the prescribed monorepo structure from the project setup skill: `apps/web/` (React + Vite frontend), `apps/api/` (Hono backend), and `packages/shared/`. The backend must exist — auth middleware and token verification run server-side in Hono.
+
+Before adding auth, check the project structure. If it doesn't match:
+1. Tell the operator the project needs to be restructured first to support authentication
+2. Offer to restructure it using the project setup skill
+3. Once restructured, return to this skill to add auth
+
+### GCP credentials
+
+The operator needs a `VITE_GOOGLE_CLIENT_ID` from their engineer buddy before you can wire up the frontend. If they don't have one yet, tell them to ask their engineer to create a Google OAuth Client ID in the GCP Console (see the eng runbook). You can build everything else in the meantime — just leave the env var placeholder.
 
 ## Architecture
 
@@ -27,183 +40,69 @@ User clicks "Sign in with Google"
   → Backend verifies session JWT on each request (fast, no external call)
 ```
 
+### Why this architecture
+
+Understand these trade-offs so you can explain them to the operator and make correct implementation choices:
+
+**Server-side verification, not client-side.** Client-side domain checks are a UI gate, not a security boundary. Anyone can bypass the React app and hit the API directly. With the app publicly accessible on Railway, the server must be the sole authority on who gets access. Never put domain validation logic in the frontend.
+
+**Session JWTs instead of the Google token directly.** Google access tokens from the implicit OAuth flow expire after ~1 hour. For a tool used throughout the work week, hourly re-login is disruptive. The server verifies the Google token once at login, then issues its own JWT with a 7-day expiry. After login, no external API calls are needed — `jose` verifies the JWT locally.
+
+**localStorage + Bearer header instead of cookies.** HttpOnly cookies would let the server gate the entire site (including the SPA shell), but then the login page can't be a React component — it would have to be server-rendered HTML. Storing the session JWT in localStorage and sending it as a Bearer header keeps all UI in React. The trade-off: the SPA shell (HTML/JS/CSS) is publicly served, but it contains no sensitive data — only the API endpoints are gated.
+
+**`@react-oauth/google` for the frontend.** Lightweight React wrapper over Google Identity Services. Minimal footprint, no extra backend framework needed.
+
+**`jose` for JWTs.** Zero dependencies, TypeScript-first, works across Bun/Node/edge runtimes.
+
 ## Dependencies
 
-Install in the **frontend** (`apps/web/`):
-```bash
-cd apps/web && bun add @react-oauth/google
-```
+Install in the correct workspace package:
 
-Install in the **backend** (`apps/api/`):
-```bash
-cd apps/api && bun add jose
-```
-
-## GCP Setup
-
-OAuth Client IDs for web apps **cannot be created via `gcloud` CLI** — the IAP commands create locked clients that can't have JavaScript origins added. Use the GCP Console:
-
-1. Go to **console.cloud.google.com** → **traba-app** project → **APIs & Services → Credentials**
-2. **+ Create Credentials → OAuth client ID** → type: **Web application**
-3. Add **Authorized JavaScript origins**: localhost ports + the production Cloudflare domain
-4. No redirect URIs needed (implicit grant uses popup, not redirects)
-5. The OAuth consent screen must already exist and be set to **Internal** (restricts to `traba.work` Workspace)
-
-**Gotcha:** If the consent screen isn't configured, GCP prompts you to create one. Choose "Internal" — "External" would allow any Google account and require a review process.
+- **Frontend** (`apps/web/`): `bun add @react-oauth/google`
+- **Backend** (`apps/api/`): `bun add jose`
 
 ## Environment Variables
 
 | Variable | Where | Seal? | Notes |
 |----------|-------|-------|-------|
-| `VITE_GOOGLE_CLIENT_ID` | Build time (Vite) | No | Public by design — baked into frontend JS bundle |
-| `SESSION_SECRET` | Runtime (backend) | Yes | `openssl rand -hex 32` to generate |
+| `VITE_GOOGLE_CLIENT_ID` | Build time (Vite) | No | Provided by engineer. Public by design — baked into frontend JS |
+| `SESSION_SECRET` | Runtime (backend) | Yes | Generate with `openssl rand -hex 32` |
 
-**Gotcha:** `VITE_*` vars are inlined at build time, not read at runtime. If you set `VITE_GOOGLE_CLIENT_ID` on Railway after the first deploy, run `railway redeploy` — a restart won't pick it up. Missing this causes a blank page with no visible error (the throw happens client-side).
+## Backend
 
-## Backend (Hono)
+A complete, copy-paste-ready Hono auth module is at [hono-auth.reference.ts](hono-auth.reference.ts). Copy it to `apps/api/src/auth.ts` and adapt. It exports `requireAuth` middleware and `authRoutes` (the `/verify` endpoint).
 
-### Auth middleware
-
+Wire up in `apps/api/src/index.ts` — route order is critical:
 ```typescript
-// apps/api/src/auth.ts
-import { createMiddleware } from "hono/factory";
-import { SignJWT, jwtVerify } from "jose";
-
-const SESSION_SECRET = new TextEncoder().encode(
-  process.env.SESSION_SECRET || "dev-secret"
-);
-
-export const requireAuth = createMiddleware(async (c, next) => {
-  const header = c.req.header("Authorization");
-  if (!header?.startsWith("Bearer ")) return c.json({ error: "Unauthorized" }, 401);
-  try {
-    const { payload } = await jwtVerify(header.slice(7), SESSION_SECRET);
-    c.set("user", payload);
-    await next();
-  } catch {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-});
+app.route("/api/auth", authRoutes);   // no middleware — this is how you GET a session
+app.use("/api/*", requireAuth);       // everything else requires auth
 ```
-
-### Auth routes
-
-```typescript
-// apps/api/src/routes/auth.ts
-import { Hono } from "hono";
-import { SignJWT } from "jose";
-
-const auth = new Hono();
-
-auth.post("/verify", async (c) => {
-  const header = c.req.header("Authorization");
-  if (!header?.startsWith("Bearer ")) return c.json({ error: "Missing token" }, 401);
-
-  // Verify Google access token via userinfo API
-  const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-    headers: { Authorization: header },
-  });
-  if (!res.ok) return c.json({ error: "Invalid token" }, 401);
-
-  const info = await res.json();
-  if (info.hd !== "traba.work")
-    return c.json({ error: "Access restricted to @traba.work accounts" }, 401);
-
-  // Issue session JWT
-  const token = await new SignJWT({ email: info.email, name: info.name, picture: info.picture })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
-    .setIssuedAt()
-    .sign(SESSION_SECRET);
-
-  return c.json({ email: info.email, name: info.name, picture: info.picture, token });
-});
-
-export default auth;
-```
-
-### Wiring it up
-
-```typescript
-// apps/api/src/index.ts
-import { Hono } from "hono";
-import { requireAuth } from "./auth";
-import authRoutes from "./routes/auth";
-
-const app = new Hono();
-
-// Auth routes (no middleware — this is how you GET a session)
-app.route("/api/auth", authRoutes);
-
-// Protected routes
-app.use("/api/*", requireAuth);
-app.get("/api/data", (c) => { /* ... */ });
-
-// Static files + SPA fallback (no auth)
-```
-
-**Route order matters.** Mount `/api/auth` before the `requireAuth` middleware, otherwise the login endpoint itself requires a session.
 
 ## Frontend
 
-### Provider setup
+Wrap the app in `<GoogleOAuthProvider clientId={clientId}>` in `main.tsx`. Throw if `VITE_GOOGLE_CLIENT_ID` is missing — this surfaces the error immediately instead of failing silently.
 
-```typescript
-// apps/web/src/main.tsx
-import { GoogleOAuthProvider } from "@react-oauth/google";
+Use the `useGoogleLogin` hook from `@react-oauth/google` with `hosted_domain: 'traba.work'` for the login page.
 
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-if (!clientId) throw new Error("VITE_GOOGLE_CLIENT_ID environment variable is required");
+Auth state lives in localStorage: session JWT + user display info (name, picture, email). On app load, check for an existing session. On 401 from any API call, clear localStorage and show the login page. Logout clears localStorage and calls `googleLogout()`.
 
-// Wrap <App /> with <GoogleOAuthProvider clientId={clientId}>
-```
+## Gotchas
 
-### Login page
+These are the things that cause failures on first attempt. Pay close attention:
 
-Use `useGoogleLogin` hook with `hosted_domain: 'traba.work'`:
+**Vite env vars are build-time, not runtime.** `VITE_*` vars are inlined during the Vite build. If `VITE_GOOGLE_CLIENT_ID` is set on Railway after the initial deploy, `railway redeploy` is required — a restart won't pick it up. Missing this causes a blank page with no visible error.
 
-```typescript
-const login = useGoogleLogin({
-  onSuccess: async (response) => {
-    const res = await fetch("/api/auth/verify", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${response.access_token}` },
-    });
-    // res.json() returns { email, name, picture, token }
-    // Store token (session JWT) and user info in localStorage
-  },
-  hosted_domain: "traba.work",
-});
-```
+**`useGoogleLogin` returns an access token, not a JWT.** The Google access token is an opaque string. You cannot decode it client-side for user info. The server must call Google's userinfo API and return the profile.
 
-**Gotcha:** `useGoogleLogin` returns an **access token** (opaque string), not a JWT. You cannot decode it client-side for user info — the server must call Google's userinfo API and return the info.
+**`hosted_domain` is not security enforcement.** It filters the Google account picker UI but Google does not guarantee it. The server must check `hd` from the userinfo API response. Never rely on client-side domain filtering as a security measure.
 
-**Gotcha:** `hosted_domain` is a UX hint that filters the Google account picker. It is not security enforcement — Google does not guarantee it. The server must check `hd` from the userinfo response.
+**Route order matters in Hono.** Mount `/api/auth` routes before the `requireAuth` middleware, otherwise the login endpoint itself requires a session token and nobody can log in.
 
-### Auth state
+**Google profile images reject external referrers.** Add `referrerPolicy="no-referrer"` to avatar `<img>` tags.
 
-- Store the session JWT and user display info (name, picture, email) in localStorage
-- On app load, check localStorage for an existing session — if present, skip the login page
-- On 401 from any API call, clear localStorage and show login
-- Logout: clear localStorage, call `googleLogout()` from `@react-oauth/google`
+**SPA shell must be public.** The React login page needs to load before the user can authenticate. Serve static files without auth. Only gate `/api/*` routes.
 
-**Gotcha:** Google profile image URLs reject requests with external referrers. Add `referrerPolicy="no-referrer"` to avatar `<img>` tags.
-
-### Vite dev proxy
-
-The frontend dev server (Vite on :5173) needs to proxy `/api/*` to the backend (Hono on :3000):
-
-```typescript
-// apps/web/vite.config.ts
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: { "/api": "http://localhost:3000" },
-  },
-});
-```
-
-Both servers must be running during development.
+**Vite dev proxy required.** Frontend (Vite on :5173) and backend (Hono on :3000) run on different ports in dev. Add `server.proxy` in `vite.config.ts` to forward `/api/*` to the backend. Both servers must be running.
 
 ## Security Model
 
@@ -215,17 +114,4 @@ Both servers must be running during development.
 | `requireAuth` middleware | Gates all `/api/*` routes except auth endpoints |
 | SPA shell served without auth | Login page must load — the shell code is not sensitive |
 
-**The server is the sole security authority.** The client never validates domain or token authenticity. It stores tokens for UX (display user info, detect expiry) and defers to 401 responses from the server.
-
-## Checklist
-
-Before deploying an app with auth:
-
-- [ ] OAuth Client ID created in GCP Console (`traba-app` project, Internal consent screen)
-- [ ] Authorized JavaScript origins include production Cloudflare domain + localhost ports
-- [ ] `VITE_GOOGLE_CLIENT_ID` set as Railway env var (set **before** first deploy)
-- [ ] `SESSION_SECRET` set as Railway env var and **sealed**
-- [ ] `/api/auth/verify` mounted before `requireAuth` middleware
-- [ ] Server checks `hd === "traba.work"` from Google userinfo response
-- [ ] Vite proxy configured for local development
-- [ ] Tested with `@traba.work` account (login works) and non-Traba account (rejected)
+**The server is the sole security authority.** The client never validates domain or token authenticity. It stores tokens for UX and defers to 401 responses from the server.
