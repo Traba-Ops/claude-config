@@ -84,14 +84,14 @@ If the operator is watching, give them status updates as you go. If you hit some
 
 ## Authentication — MUST be set up BEFORE deploying
 
-**Do NOT deploy to Railway until Cloudflare Access auth is in place.** An unprotected deploy means the app is publicly accessible on the internet with no auth.
+**Do NOT deploy to Railway until auth is in place.** An unprotected deploy means the app is publicly accessible on the internet with no auth.
 
-Auth is handled by engineers, not operators:
-1. **Before deploying**, reach out to Sumeet, Jeff, or Moreno to set up Cloudflare Zero Trust Access for the app
-2. They will configure OTP authentication restricted to @traba.work emails
-3. Only after auth is confirmed should the app be deployed to Railway
+**Use in-app Google OAuth** (see the authentication skill for the full setup). The app handles login via `@react-oauth/google` on the frontend and verifies tokens server-side. Key requirements before deploying:
 
-Do NOT build your own auth for internal tools. Cloudflare Access sits in front of the app as a reverse proxy — users authenticate before any request reaches the origin.
+1. Create an OAuth Client ID in GCP Console (`traba-app` project)
+2. Set `VITE_GOOGLE_CLIENT_ID` as a Railway env var **before the first deploy** (it's build-time)
+3. Set `SESSION_SECRET` as a Railway env var and **seal it**
+4. Verify the app rejects non-`@traba.work` accounts
 
 ## Persistence
 

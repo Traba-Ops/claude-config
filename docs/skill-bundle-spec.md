@@ -15,7 +15,9 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
 | **Deployment** | Railway, Cloudflare Access, Supabase | `~/.claude/skills/deployment/` (loaded when relevant) |
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
+| **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
+| **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
 
@@ -83,7 +85,13 @@ Includes `.gitignore` and `.pre-commit-config.yaml` as reference files — Claud
 
 **Trigger:** User wants to deploy, share, or make their app accessible to others.
 
-Covers the full Tier 2 stack: Railway (single service: backend serves frontend as static files, auto-deploy on push), Cloudflare Zero Trust for auth (@traba.work email restriction), Supabase for shared persistence, and Railway environment variables for secrets.
+Covers the full Tier 2 stack: Railway (single service: backend serves frontend as static files, auto-deploy on push), in-app Google OAuth for auth (see authentication skill), Supabase for shared persistence, and Railway environment variables for secrets.
+
+### Authentication
+
+**Trigger:** Adding login to an app, or user asks about auth, sessions, or access control.
+
+Covers Google OAuth with `@react-oauth/google` on the frontend and server-side verification via Google's userinfo API. The backend issues 7-day session JWTs using `jose`. Includes GCP setup gotchas (must use Console, not gcloud), Vite env var pitfalls, Hono middleware patterns, and a pre-deploy checklist.
 
 ### Design System
 
@@ -108,7 +116,7 @@ Skills are guidance, not enforcement. Things that MUST be enforced outside of Cl
 | Risk | Hard Enforcement |
 |------|------------------|
 | Secret leakage | Gitleaks pre-commit + GitHub push protection |
-| Exposed endpoints | Cloudflare Zero Trust as reverse proxy |
+| Exposed endpoints | In-app Google OAuth (authentication skill) |
 | Dependency vulnerabilities | Dependabot |
 | Cost overruns | Cloud billing alerts |
 
