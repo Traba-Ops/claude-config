@@ -110,6 +110,18 @@ For projects that eventually need more rigor (high traffic, sensitive data), bra
 | **Railway env var isolation** | Railway has no per-project access control — any team Member can view all env vars. Sensitive values must be sealed (see Layer 7). |
 | **Environment isolation** | Supabase projects for citizen dev apps are separate from production Supabase. Separate Railway projects. |
 | **Network isolation** | Citizen-developed apps cannot directly access production data stores. Use the Traba MCP data layer (BigQuery RBAC). |
+| **No new GCP projects** | Never create a new GCP project. Use the existing `traba-ops` project. Contact a GCP admin to provision service accounts, enable APIs, and grant IAM permissions. |
+
+#### GCP: always use `traba-ops`, never create new projects
+
+Creating a new GCP project bypasses org-level billing controls, IAM policies, audit logging, and quota guardrails. It also creates an unmonitored footprint that Traba's security team can't see.
+
+**Rule:** If a feature needs a GCP service (Cloud Storage, Pub/Sub, Cloud Tasks, etc.), open a request to a GCP admin. They will:
+- Create or scope a service account inside `traba-ops` with least-privilege IAM roles
+- Enable the required APIs on the existing project
+- Provide the service account key or Workload Identity binding
+
+Claude should never run `gcloud projects create` or click through the GCP console to create a new project. If a task seems to require a new GCP project, stop and ask an admin instead.
 
 ### Layer 6: `.gitignore` template
 
