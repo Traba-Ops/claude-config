@@ -4,46 +4,70 @@ description: |
   BigQuery access via the traba-auth proxy service. Use when: (1) an app needs
   to query BigQuery data, (2) user asks about data access or Traba business data,
   (3) user needs to authenticate users for BigQuery queries.
-version: 1.3.0
+version: 2.0.0
 ---
 
 # BigQuery Auth (traba-auth)
 
 Traba apps never hold GCP credentials directly. Instead, they authenticate users through **traba-auth**, a centralized proxy that executes BigQuery queries on behalf of authenticated users using their own Google OAuth tokens. This ensures queries run as the user (proper RBAC), credentials stay centralized, and audit logs reflect the real requester.
 
-**Service URL:** `https://traba-auth-production-caf5.up.railway.app`
+**Service URL:** `https://data-proxy.traba.work`
 
 ## How It Works
 
 1. App redirects the user to traba-auth's login endpoint
 2. User authenticates with their `@traba.work` Google account (OAuth)
-3. traba-auth issues a JWT and redirects back to the app with `?token=<jwt>`
-4. App stores the JWT and sends it as a `Bearer` token on all `/query` requests
-5. traba-auth validates the JWT, loads the user's Google OAuth tokens, and executes the query via BigQuery
+3. traba-auth redirects back to the app with `?code=<one-time-code>` (expires in 60 seconds)
+4. App POSTs the code to `/auth/token` to exchange it for a JWT
+5. App stores the JWT and sends it as a `Bearer` token on all `/query` requests
+6. traba-auth validates the JWT, loads the user's Google OAuth tokens, and executes the query via BigQuery
 
 JWTs expire after 60 minutes. BigQuery credentials are refreshed automatically server-side — users only need to re-authenticate when their JWT expires. If a `/query` request returns 401, clear the stored token and restart the login flow.
 
 ## Production Setup — Required Before Deploying
 
-The traba-auth OAuth client must whitelist the app's production callback URL before login will work in production. **This is a one-time step per app and must be done before the first deploy.**
+traba-auth restricts which apps can use it via two controls that must both be configured before the first deploy. **Send a message in #data on Slack:**
 
-When the operator is ready to deploy, send a message in **#data** on Slack:
+> Hey @charles — deploying a new app that uses traba-auth for BigQuery. Can you:
+> 1. Add `https://<app-url>.railway.app` to `ALLOWED_REDIRECT_ORIGINS` in traba-auth
+> 2. Register `https://<app-url>.railway.app/` as an authorized redirect URI in the GCP OAuth client
+>
+> App name: `<your-app-name>`
 
-> Hey @charles — can you whitelist `https://<app-url>.railway.app/` as an allowed OAuth redirect URI in traba-auth? Deploying a new app that uses it for BigQuery auth.
-
-Do not skip this step or deploy without it — OAuth redirects will silently fail until the URL is whitelisted.
+Do not deploy without this — the OAuth redirect will fail silently and `POST /auth/token` will reject the code.
 
 ## API
 
 ### `GET /auth/login?redirect_uri=<url>`
-Redirect the user here to start OAuth. After login, traba-auth redirects to `redirect_uri?token=<jwt>`. If the user's Google account is not a `@traba.work` account, it redirects to `redirect_uri?error=unauthorized` instead — handle this in the callback.
+Initiates OAuth. After login, redirects to `redirect_uri?code=<one-time-code>`. The code expires in **60 seconds** and is single-use. If the account is not `@traba.work`, redirects to `redirect_uri?error=unauthorized`.
+
+### `POST /auth/token`
+Exchanges a one-time code for a JWT.
+
+**Body:** `{"code": "<one-time-code>"}`
+
+**Response:** `{"access_token": "<jwt>", "token_type": "bearer"}`
+
+Exchange the code immediately on callback — it expires in 60 seconds.
+
+### `GET /auth/me`
+Returns the authenticated user's info. Used by backends to validate a token.
+
+**Header:** `Authorization: Bearer <jwt>`
+
+**Response:** `{"email": "user@traba.work", "name": "First Last"}`
+
+### `GET /auth/logout`
+Revokes the JWT (adds to blocklist) and clears stored BQ tokens. Always call this on logout — the token is immediately invalid server-side.
+
+**Header:** `Authorization: Bearer <jwt>`
 
 ### `POST /query`
-Execute a BigQuery query.
+Execute a read-only BigQuery query. **Write queries (INSERT, UPDATE, DELETE, DROP, etc.) are rejected server-side.**
 
 **Headers:**
 - `Authorization: Bearer <jwt>` — required
-- `X-App-Name: <your-app-name>` — required for audit logging; added as a SQL comment in BigQuery logs
+- `X-App-Name: <your-app-name>` — required for audit logging
 
 **Body:**
 ```json
@@ -53,44 +77,46 @@ Execute a BigQuery query.
 }
 ```
 
-**Response (success):**
-```json
-{ "rows": [...] }
-```
+**Responses:**
 
-**Response (401 — JWT expired or invalid):**
-```json
-{ "message": "Not authenticated", "login_url": "https://traba-auth-production-caf5.up.railway.app/auth/login" }
-```
+| Status | Meaning | Body |
+|--------|---------|------|
+| 200 | Success | `{"rows": [...]}` |
+| 400 | Query too expensive or write SQL rejected | `{"detail": "..."}` |
+| 401 | JWT expired or revoked | `{"message": "...", "login_url": "..."}` |
+| 429 | Rate limit exceeded (30 queries/min per user) | `{"detail": "Rate limit exceeded"}` |
+| 500 | Server error | `{"request_id": "...", "message": "Internal server error"}` |
 
-Use `?` placeholders for dynamic values when possible. Note: traba-auth treats all `?` parameters as `STRING` type. For non-string values (integers, floats, arrays) or BigQuery named parameters (`@name`), inline the values into the SQL string with proper escaping instead of using `params`.
+Use `?` placeholders for dynamic values. Note: traba-auth treats all `?` parameters as `STRING` type. For non-string values (integers, floats, arrays) or BigQuery named parameters (`@name`), inline the values with proper escaping instead of using `params`.
 
 ## Streamlit Integration
 
-Streamlit is the most common app type. Store the JWT in `st.session_state`.
-
 ```python
+import os
 import streamlit as st
 import httpx
 
-import os
-
-TRABA_AUTH_URL = os.getenv("TRABA_AUTH_URL", "http://localhost:8000")  # defaults to local traba-auth for dev
-APP_NAME = "your-app-name"  # use a short, descriptive name for audit logs
+TRABA_AUTH_URL = os.getenv("TRABA_AUTH_URL", "http://localhost:8000")  # local traba-auth for dev
+APP_NAME = "your-app-name"  # short, descriptive — used in BigQuery audit logs
 APP_URL = os.getenv("APP_URL", "http://localhost:8501")  # set APP_URL env var in Railway
 
 def require_auth():
     """Call at the top of every page. Returns when user is authenticated."""
     if "token" not in st.session_state:
         error = st.query_params.get("error")
-        token = st.query_params.get("token")
+        code = st.query_params.get("code")
         if error == "unauthorized":
             st.query_params.clear()
             st.error("Access restricted to @traba.work accounts.")
             st.stop()
-        elif token:
-            st.session_state.token = token
+        elif code:
+            # Exchange one-time code for JWT (code expires in 60s — do this immediately)
             st.query_params.clear()
+            resp = httpx.post(f"{TRABA_AUTH_URL}/auth/token", json={"code": code})
+            if resp.status_code != 200:
+                st.error("Login failed — please try again.")
+                st.stop()
+            st.session_state.token = resp.json()["access_token"]
             st.rerun()
         else:
             st.link_button(
@@ -108,14 +134,31 @@ def run_query(sql: str, params: list | None = None) -> list[dict]:
             "Authorization": f"Bearer {st.session_state.token}",
             "X-App-Name": APP_NAME,
         },
-        timeout=60,
+        timeout=30,
     )
     if resp.status_code == 401:
         del st.session_state["token"]
         st.error("Session expired — please sign in again.")
         st.stop()
+    if resp.status_code == 429:
+        st.error("Too many queries — please wait a moment and try again.")
+        st.stop()
+    if resp.status_code == 400:
+        st.error(f"Query error: {resp.json().get('detail', 'unknown error')}")
+        st.stop()
     resp.raise_for_status()
     return resp.json()["rows"]
+
+def logout():
+    """Revoke the token server-side and clear all local state."""
+    if "token" in st.session_state:
+        httpx.get(
+            f"{TRABA_AUTH_URL}/auth/logout",
+            headers={"Authorization": f"Bearer {st.session_state.token}"},
+            timeout=5,
+        )
+    st.session_state.clear()
+    st.rerun()
 
 # Usage
 require_auth()
@@ -124,10 +167,8 @@ rows = run_query("SELECT shift_id, status FROM `traba-data.marts.shifts` WHERE d
 
 ## TypeScript Integration
 
-For Hono/bun backends, store the JWT in the session (cookie or client-side storage) after the OAuth callback.
-
 ```typescript
-const TRABA_AUTH_URL = "https://traba-auth-production-caf5.up.railway.app";
+const TRABA_AUTH_URL = process.env.TRABA_AUTH_URL ?? "http://localhost:8000";
 const APP_NAME = "your-app-name";
 
 // Redirect user to login
@@ -136,15 +177,35 @@ app.get("/auth/login", (c) => {
   return c.redirect(`${TRABA_AUTH_URL}/auth/login?redirect_uri=${redirectUri}`);
 });
 
-// Handle callback — token arrives as ?token=<jwt>, or ?error=unauthorized for non-@traba.work accounts
-app.get("/auth/callback", (c) => {
+// Handle callback — exchange one-time code for JWT (code expires in 60s)
+app.get("/auth/callback", async (c) => {
   if (c.req.query("error") === "unauthorized") {
     return c.text("Access restricted to @traba.work accounts.", 403);
   }
-  const token = c.req.query("token");
-  if (!token) return c.text("Auth failed", 400);
-  // Store token in session cookie or return to client
-  setCookie(c, "token", token, { httpOnly: true, sameSite: "Lax" });
+  const code = c.req.query("code");
+  if (!code) return c.text("Auth failed", 400);
+
+  const resp = await fetch(`${TRABA_AUTH_URL}/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!resp.ok) return c.text("Login failed — please try again.", 401);
+
+  const { access_token } = await resp.json() as { access_token: string };
+  setCookie(c, "token", access_token, { httpOnly: true, sameSite: "Lax" });
+  return c.redirect("/");
+});
+
+// Handle logout — revoke token server-side
+app.get("/auth/logout", async (c) => {
+  const token = getCookie(c, "token");
+  if (token) {
+    await fetch(`${TRABA_AUTH_URL}/auth/logout`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+  }
+  deleteCookie(c, "token");
   return c.redirect("/");
 });
 
@@ -159,6 +220,8 @@ async function queryBQ(sql: string, params: string[], token: string): Promise<Re
     },
     body: JSON.stringify({ sql, params }),
   });
+  if (resp.status === 401) throw new Error("SESSION_EXPIRED");
+  if (resp.status === 429) throw new Error("RATE_LIMITED");
   if (!resp.ok) throw new Error(`BQ query failed: ${resp.status}`);
   const data = await resp.json() as { rows: Record<string, unknown>[] };
   return data.rows;
@@ -167,7 +230,7 @@ async function queryBQ(sql: string, params: string[], token: string): Promise<Re
 
 ## Backend Token Validation (FastAPI)
 
-When the app has a backend that receives tokens from a frontend client, validate the token by calling `/auth/me` rather than verifying the JWT locally. Store the token in a `ContextVar` so the service layer can use it without threading it through every function signature.
+When the app has a backend that receives tokens from a frontend client, validate the token by calling `/auth/me`. Store the token in a `ContextVar` so the service layer can use it without threading it through every function signature.
 
 ```python
 import os
@@ -222,6 +285,10 @@ def proxy_query(sql: str) -> list[dict]:
         raise HTTPException(status_code=502, detail="Auth service unreachable")
     if resp.status_code == 401:
         raise HTTPException(status_code=401, detail="Session expired — please log in again")
+    if resp.status_code == 429:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded — try again shortly")
+    if resp.status_code == 400:
+        raise HTTPException(status_code=400, detail=resp.json().get("detail", "Query rejected"))
     resp.raise_for_status()
     return resp.json()["rows"]
 
@@ -232,13 +299,101 @@ def get_data(current_user: dict = Depends(require_user)):
     return {"rows": rows, "user": current_user["email"]}
 ```
 
+## Compliance — Data Access Controls
+
+BigQuery RBAC only holds if the app doesn't create shortcuts around it. Each rule below closes a specific loophole.
+
+### Never cache query results across users or requests
+
+Query results must not be stored in any shared or persistent store — no Redis, no in-memory dict, no database table, no file. Each request must execute fresh under the requesting user's token. If two users have different BigQuery permissions, a shared cache would let one see the other's results.
+
+If caching metadata (lookup tables, user lists, filter options), key it by the authenticated user's email. A global cache is only safe if the data is provably non-sensitive and identical for all users — document that assumption explicitly when you make it.
+
+```python
+# BAD — global cache leaks data across users
+_cache = {}
+def get_options():
+    if not _cache:
+        _cache["rows"] = proxy_query("SELECT ...")
+    return _cache["rows"]
+
+# GOOD — per-user cache
+_cache = {}
+def get_options(email: str):
+    if email not in _cache:
+        _cache[email] = proxy_query("SELECT ...")
+    return _cache[email]
+```
+
+### Apps must never have a non-auth fallback — full stop
+
+Do not add a `DEV_MODE` flag, a service account bypass, ADC fallback, or any code path that skips traba-auth. The app always talks to traba-auth, in every environment. This is non-negotiable.
+
+The reason: a DEV_MODE bypass is a credential-sharing vector. It runs queries as a service account with broader permissions than the user has, silently defeating per-user RBAC. It also means the code path you test locally is not the code path that runs in production.
+
+**For local development**, run traba-auth locally instead:
+
+```bash
+# In ~/Documents/repo/traba-auth:
+# 1. Set DEV_MODE=true in traba-auth's .env (it uses ADC, skipping Redis/OAuth)
+# 2. Run: gcloud auth application-default login
+# 3. Run: uvicorn app.main:app --reload
+
+# In your app's .env:
+TRABA_AUTH_URL=http://localhost:8000  # points to local traba-auth
+```
+
+Your app's code is identical in dev and prod. `DEV_MODE` lives only in traba-auth, never in the app.
+
+If you encounter existing code with a DEV_MODE bypass, remove it. There is no acceptable reason for an app to have one.
+
+### Never log query results
+
+Log query metadata — user email, execution time, row count — not the rows themselves. Raw data in logs creates a secondary access channel outside BigQuery's permission model and may persist far longer than intended.
+
+```python
+# BAD
+logger.info(f"Query returned: {rows}")
+
+# GOOD
+logger.info(f"Query executed by {email}: {len(rows)} rows in {elapsed:.2f}s")
+```
+
+### Don't store tokens outside the current request
+
+In FastAPI, keep the token in a `ContextVar` (request-scoped). Never assign it to a module-level variable, a class attribute, a background task, or anything that outlives the request. A leaked token lets subsequent requests execute BigQuery queries as the wrong user.
+
+### Call `/auth/logout` on logout — tokens are now revoked server-side
+
+Logout adds the JWT to a blocklist in traba-auth. A logged-out token is immediately invalid for all subsequent requests. Always call `GET /auth/logout` with the Bearer token when the user logs out — don't just clear local state.
+
+### Inlined parameters must be properly escaped
+
+When using non-string types that require inlining into SQL (see parameter note in the API section), escape values carefully. Incomplete escaping is a SQL injection vector.
+
+At minimum, escape single quotes and reject null bytes. Prefer `?` placeholders for string values where traba-auth handles escaping.
+
+```python
+# Minimal safe inlining for STRING values
+def inline_string(value: str) -> str:
+    if '\x00' in value:
+        raise ValueError("Null bytes not allowed in query parameters")
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+```
+
+---
+
 ## Rules
 
 - **Always** set `X-App-Name` on every request — it's how queries get attributed in BigQuery audit logs
 - **Never** store GCP credentials in the app — all data access goes through traba-auth
+- Exchange the one-time code **immediately** on callback — it expires in 60 seconds
 - `?` params are STRING-only — inline non-string values (ints, floats, arrays) with proper escaping
 - Use a 30s timeout on `/query` requests — BigQuery queries on large tables are slow
 - Use a 5s timeout on `/auth/me` validation calls
-- Handle 401 on `/query` by showing "Session expired — please sign in again" and stopping (don't silently rerun)
-- Store `TRABA_AUTH_URL` as an env var; default to `http://localhost:8000` so local dev works without extra config
+- Handle 401 by showing "Session expired — please sign in again" and stopping
+- Handle 429 by surfacing "Too many queries — wait a moment" to the user
+- Handle 400 by surfacing the `detail` field — it will explain why the query was rejected (too expensive, or write SQL)
+- Always call `/auth/logout` on logout — the token is revoked server-side, not just cleared locally
+- Store `TRABA_AUTH_URL` as an env var; default to `http://localhost:8000` for local dev
 - For backends: validate tokens via `/auth/me`, not local JWT parsing — traba-auth is the authority
