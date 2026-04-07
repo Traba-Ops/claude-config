@@ -227,7 +227,11 @@ A well-formed query against `marts.*` or `metrics.*` with a date filter should s
 
 ### If the BigQuery MCP is not available
 
-If the MCP tools aren't in your session (check your tool list), write the SQL query and tell the user to run it in the BigQuery console (`console.cloud.google.com/bigquery`, project `traba-app`). Do not attempt to execute via shell or any other mechanism.
+This happens in two situations:
+- **Cloud agents** (claude.ai, Conductor remote agents, etc.) — the MCP toolbox and local credentials don't exist in the cloud environment. This is expected, not a misconfiguration.
+- **Local setup not complete** — the user hasn't finished the one-time setup above.
+
+In either case: write the SQL query and tell the user to run it in the BigQuery console (`console.cloud.google.com/bigquery`, project `traba-app`). Format the query clearly so it's easy to copy. Do not attempt to execute via shell or any other mechanism.
 
 ---
 
