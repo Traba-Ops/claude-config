@@ -73,6 +73,7 @@ Always query from the highest layer available. Work down only when the data you 
 | Layer | Datasets | Use when |
 |-------|----------|----------|
 | **Primary** | `marts.*`, `metrics.*` | All standard analysis — shifts, workers, companies, fill rate, revenue |
+| **Activation** | `operations.*`, `finance.*`, `sales.*`, `product.*`, `marketing.*` | Team-specific pre-built reports; use when the question maps to a specific team's view |
 | **Source** | `src_pg.*`, `src_salesforce.*`, `src_intercom.*`, etc. | Source-specific data not yet in marts (e.g., raw CRM fields) |
 | **Avoid** | `traba_prod.*`, `pg_export_prod_public.*`, `bigquery_admin.*` | Legacy, raw source, or restricted to the data team |
 
@@ -99,6 +100,31 @@ Always query from the highest layer available. Work down only when the data you 
 | `metrics.company_regions_by_day` | One row per company × region × date | Daily metrics for every active company-region. Includes `days_from_first_shift`. Updated daily. |
 | `metrics.placements_by_day` | One row per worker × company × date | Daily expansion of placements from first shift forward. Includes churn, scheduled shift counts. Updated daily. |
 
+
+---
+
+### `operations.*`, `finance.*`, `sales.*`, `product.*`, `marketing.*` — Activation layer
+
+Pre-built team-specific reports. Use these when the user's question is clearly scoped to a team's domain — they often save a complex join. Prefer them over building from scratch when they exist.
+
+| Table | What it contains |
+|-------|-----------------|
+| `operations.fill_rate_dashboard` | Fill rate metrics by company-region |
+| `operations.customer_health_dashboard` | Customer health signals |
+| `operations.customer_scorecard` | Key account metrics for COps |
+| `operations.worker_churn_dashboard` | Worker churn and retention metrics |
+| `operations.worker_management_dashboard` | Worker supply and activity |
+| `operations.applications_by_day` | Worker applications by day |
+| `finance.revenue_daily_report` | Daily revenue |
+| `finance.company_region_daily_report` | Revenue by company-region per day |
+| `finance.customer_targets_and_actuals_by_day` | Revenue targets vs actuals |
+| `finance.shift_metrics_by_week` | Weekly shift volume and revenue |
+| `finance.invoice_line_items_by_month` | Monthly invoice line items |
+| `sales.daily_revenue_attainment` | Daily revenue vs sales targets |
+| `sales.monthly_goa_attainment` | Monthly goal attainment |
+| `sales.expansion_revenue` | Expansion revenue tracking |
+| `product.key_results_by_week` | Product KRs by week |
+| `marketing.google_ads_campaign_daily_spend` | Google Ads spend by campaign |
 
 ---
 
