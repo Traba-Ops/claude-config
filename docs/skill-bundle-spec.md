@@ -17,7 +17,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
-| **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
+| **Data query** | Ad-hoc BigQuery queries, data ontology, dry-run gate | `~/.claude/skills/data-query/` |
 
 **How operators get it:**
 
@@ -103,9 +103,15 @@ Single-file skill (~620 lines): critical rules at top, then all tokens, componen
 
 ### BigQuery Auth
 
-**Trigger:** User needs to query BigQuery data, access Traba business data, or authenticate users for data access.
+**Trigger:** An app needs BigQuery access — user asks about integrating data queries into a Streamlit, TypeScript, or FastAPI app.
 
-Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
+Covers the traba-auth proxy service: OAuth login flow, one-time code exchange, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, compliance controls (no result caching, no auth bypass), and a pre-deploy checklist for getting the app URL whitelisted.
+
+### Data Query
+
+**Trigger:** User asks a data question — shifts, workers, companies, fill rate, revenue, or any Traba operational metric — and needs Claude to retrieve the answer from BigQuery.
+
+Covers the full setup (MCP Toolbox binary, Application Default Credentials, `~/.claude/settings.json` config), the dataset hierarchy (`marts.*` and `metrics.*` preferred; `traba_prod.*` and raw source tables are legacy/avoided), key table reference with grain and column notes, SQL conventions (CTEs, fully qualified table names, 2026 YTD default, LIMIT 5 on exploratory queries), and a dry-run gate (warn at 200 MB, hard stop at 1 GB). Queries run as the user's own Google identity.
 
 ---
 
