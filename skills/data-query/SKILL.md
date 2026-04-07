@@ -74,8 +74,7 @@ Always query from the highest layer available. Work down only when the data you 
 |-------|----------|----------|
 | **Primary** | `marts.*`, `metrics.*` | All standard analysis — shifts, workers, companies, fill rate, revenue |
 | **Source** | `src_pg.*`, `src_salesforce.*`, `src_intercom.*`, etc. | Source-specific data not yet in marts (e.g., raw CRM fields) |
-| **Admin** | `bigquery_admin.*` | BigQuery cost and usage analysis |
-| **Avoid** | `traba_prod.*`, `pg_export_prod_public.*` | Legacy / raw — these are deprecated or raw source |
+| **Avoid** | `traba_prod.*`, `pg_export_prod_public.*`, `bigquery_admin.*` | Legacy, raw source, or restricted to the data team |
 
 ---
 
@@ -100,11 +99,6 @@ Always query from the highest layer available. Work down only when the data you 
 | `metrics.company_regions_by_day` | One row per company × region × date | Daily metrics for every active company-region. Includes `days_from_first_shift`. Updated daily. |
 | `metrics.placements_by_day` | One row per worker × company × date | Daily expansion of placements from first shift forward. Includes churn, scheduled shift counts. Updated daily. |
 
-### Useful supporting datasets
-
-| Table | What it contains |
-|-------|-----------------|
-| `bigquery_admin.usage_by_user` | Per-user query cost and count. Use for BQ cost analysis. |
 
 ---
 
