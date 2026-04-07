@@ -110,15 +110,11 @@ Pre-built team-specific reports. Use these when the user's question is clearly s
 | Table | What it contains |
 |-------|-----------------|
 | `operations.fill_rate_dashboard` | Fill rate metrics by company-region |
-| `operations.customer_health_dashboard` | Customer health signals |
 | `operations.customer_scorecard` | Key account metrics for COps |
 | `operations.worker_churn_dashboard` | Worker churn and retention metrics |
-| `operations.worker_management_dashboard` | Worker supply and activity |
 | `operations.applications_by_day` | Worker applications by day |
 | `finance.revenue_daily_report` | Daily revenue |
 | `finance.company_region_daily_report` | Revenue by company-region per day |
-| `finance.customer_targets_and_actuals_by_day` | Revenue targets vs actuals |
-| `finance.shift_metrics_by_week` | Weekly shift volume and revenue |
 | `finance.invoice_line_items_by_month` | Monthly invoice line items |
 | `sales.daily_revenue_attainment` | Daily revenue vs sales targets |
 | `sales.monthly_goa_attainment` | Monthly goal attainment |
