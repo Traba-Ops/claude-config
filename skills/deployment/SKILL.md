@@ -3,7 +3,7 @@ name: deployment
 description: |
   Deployment guidance for sharing Traba apps. Use when: (1) user wants to deploy,
   share, or make their app accessible to others, (2) user asks about hosting or URLs.
-  Covers: Railway, Cloudflare Access auth, Railway env vars for secrets, Supabase.
+  Covers: Railway, Cloudflare Access auth, Railway env vars for secrets, Railway Postgres.
 version: 1.0.0
 ---
 
@@ -97,10 +97,14 @@ If the operator is watching, give them status updates as you go. If you hit some
 
 ## Persistence
 
-When the app needs shared data across users, switch from SQLite to Supabase:
-- Use the Supabase client library for data access
-- Store Supabase URL and anon key in `.env` (gitignored), never hardcode
-- Enable RLS on every table at creation time
+When the app needs shared data across users, switch from SQLite to Railway Postgres:
+1. Add a Postgres database to the Railway project (`Cmd+K` or `+ New` → Postgres template)
+2. **Disable TCP proxy** on the database service (Settings → Networking → remove TCP proxy) — Prometheus apps connect over private networking, so the DB should not be exposed to the public internet
+3. In the app service, add a reference variable: `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
+4. Update the Prisma schema to use `provider = "postgresql"` instead of `sqlite`
+5. Run `bunx prisma migrate dev` to apply the schema to the new database
+
+`DATABASE_URL` does not need to be sealed as long as TCP proxy is disabled — the password is only accessible within Railway's private network.
 
 ## Secrets
 

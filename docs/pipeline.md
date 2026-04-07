@@ -51,7 +51,7 @@ Most of the setup can be done by the operator with Claude. Engineers provide acc
    - Deploy to Railway (single service: backend serves frontend as static files)
 
 3. **What an engineer does:**
-   - Grant access to Railway and Supabase (if needed)
+   - Grant access to Railway (if needed)
    - Quick review of the code for obvious security issues
    - Add secrets as Railway environment variables
    - Configure Cloudflare Access (email domain restriction for @traba.work)
@@ -111,7 +111,7 @@ That spec is used to rebuild in the core repo with full production standards (co
 - Pushes directly to main on their own repos
 
 ### Engineer (promotion facilitator)
-- Grants access to infrastructure (Railway, Cloudflare, Supabase)
+- Grants access to infrastructure (Railway, Cloudflare)
 - Quick security review of the code
 - Adds secrets as Railway environment variables and sets up auth (Cloudflare Access)
 

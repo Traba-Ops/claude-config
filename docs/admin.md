@@ -64,10 +64,10 @@ Archiving (not deleting) preserves the code and commit history in case someone w
 
 Per Tier 2 app: ~$5-10/month
 - Railway Hobby: $5/mo (includes $5 usage credit)
+- Railway database: ~$0.50-1.00/mo per small Postgres (draws from same usage credit)
 - Cloudflare Access: Free up to 50 users
-- Supabase Free: 2 projects, 500 MB database
 - GitHub: $21/seat/mo (enterprise umbrella)
 
 At 50 apps, estimate ~$250-500/mo plus GitHub seats. No per-team chargeback — company investment.
 
-Set up org-level billing alerts on Railway and Supabase.
+Set up org-level billing alerts on Railway.

@@ -7,7 +7,7 @@
 | # | Decision | Detail |
 |---|----------|--------|
 | 1 | **GitHub org:** `traba-ops` | Separate org under enterprise umbrella. $21/seat. Jeff set it up. |
-| 2 | **Supabase RLS:** auth is the gate, not RLS | Cloudflare Zero Trust is the security boundary. RLS is overkill for internal tools. |
+| 2 | **Database access control:** auth is the gate, not DB-level policies | Cloudflare Zero Trust + Railway private networking is the security boundary. DB-level policies are overkill for internal tools. |
 | 4 | **Claude subscription:** Team plan | Operators start on base, upgrade as needed. |
 | 5 | **Railway reliability:** non-issue | Chosen for DX, not reliability. If an app can't tolerate downtime, it should be Tier 1. |
 
@@ -39,7 +39,7 @@ Most Tier 3/2 apps call the Traba API or MCP data layer, not heavy data storage.
 
 ### 9. Cost tracking
 
-Per Tier 2 app: ~$5-10/mo (Railway $5, everything else free or existing). At 50 apps, ~$250-500/mo plus GitHub seats (enterprise umbrella). No chargeback to teams — company investment. Set up org-level billing alerts on Railway and Supabase.
+Per Tier 2 app: ~$5-10/mo (Railway $5 + ~$1 for database, everything else free or existing). At 50 apps, ~$250-500/mo plus GitHub seats (enterprise umbrella). No chargeback to teams — company investment. Set up org-level billing alerts on Railway.
 
 ### 10. Sensitive data and authentication
 

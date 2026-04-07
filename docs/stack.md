@@ -17,8 +17,8 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | Routing | React Router DOM | TanStack Router | Mature, matches core Traba frontend. |
 | Testing | Vitest | Jest | Native Vite integration, faster. Same API as Jest. |
 | Monorepo | bun workspaces | pnpm + Turborepo | One tool. Operator tools are small — Turborepo/Nx add complexity for no benefit at this scale. |
-| Database | Supabase | Neon | Supabase's abstraction layer is its strength here — dashboard UI, auto-generated REST APIs, built-in auth. Non-engineers can manage data without SQL. |
-| ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Supabase). Migration tooling built in. |
+| Database | Railway Postgres | Supabase, Neon | Railway databases are regular services billed by actual compute — a small Postgres costs ~$1/mo. No per-project VM surcharge. Prisma handles all data access, so Supabase's REST API layer adds cost without benefit. |
+| ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Railway). Migration tooling built in. |
 | Deploy | Railway (backend serves frontend) | Render | Single service: backend builds + serves frontend as static files. Avoids Nixpacks monorepo confusion. Use `railway.json` for explicit build/start. Even frontend-only apps use Railway with a minimal static server. |
 | Auth (shared apps) | Cloudflare Zero Trust | Google OAuth | Free for up to 50 users. Email-domain restriction (`@traba.work`) with magic link OTP. No IdP setup required. |
 | Secrets | Railway environment variables | Infisical, Doppler | Simplest option — no extra tooling. Railway dashboard is accessible to operators. Secrets stay in the deployment platform where they're used. |
@@ -111,28 +111,44 @@ my-project/
 
 ---
 
-## Database: Supabase
+## Database: Railway Postgres
 
-**Why Supabase over Neon:**
-Neon is raw Postgres — no auth, no storage, no API layer, no visual dashboard for non-engineers. Supabase provides the full stack a citizen developer needs: database + auth + file storage + auto-generated REST APIs + a table editor UI. The abstraction layer that engineers find annoying is exactly what makes it accessible.
+**Why Railway Postgres over Supabase:**
+Two reasons — cost and operational simplicity.
+
+*Cost:* Supabase charges ~$10/mo per project for a dedicated Postgres VM (Micro compute), with only one covered by the Pro plan's $10 compute credit. At 5-10 Prometheus apps, that's $40-90/mo in database compute alone on top of the $25/mo base. Railway treats databases as regular services billed by actual resource consumption (CPU cycles, memory, volume storage) — a small idle Postgres costs ~$0.50-1.00/mo, and multiple databases share the same credit pool. The Pro plan's $20 usage credit covers 10+ small databases with room to spare.
+
+*Operational simplicity:* We already use Railway for hosting. Adding a database is one click in the same project — no onboarding operators to a separate service, no separate account management, no extra access grants. Supabase would be another service to manage, another set of credentials to provision, and another thing to revoke during offboarding.
+
+Supabase's value proposition — auto-generated REST APIs, dashboard UI, built-in auth — doesn't apply here. Prometheus apps already use Prisma for type-safe data access and Hono for the API layer. Supabase's abstraction is redundant, and the per-project cost penalty compounds as we scale.
+
+**Setup:**
+Add a Postgres database directly from the Railway project canvas (`Cmd+K` or `+ New` → database template). Railway exposes connection variables (`DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`) on the database service. Reference them from your app service using Railway's variable syntax (e.g., `${{Postgres.DATABASE_URL}}`). Many libraries (including Prisma) auto-detect `DATABASE_URL`. Services communicate over private networking — low latency, no traffic leaves Railway's network.
+
+**Networking — disable TCP proxy:**
+The Railway Postgres template enables TCP proxy by default, which exposes the database to the public internet. Since Prometheus apps connect from within the same Railway project over private networking, **disable the TCP proxy** after setup (Service → Settings → Networking → remove the TCP proxy). With TCP proxy disabled, the database is only reachable over Railway's internal network, and `DATABASE_URL` does not need to be sealed — the password is never exposed outside Railway's private network.
 
 **Pricing:**
-- Free: 2 projects, 500 MB database, 50K monthly active users, auto-pauses after 7 days of inactivity
-- Pro ($25/mo): 8 GB database, 100K MAUs, spend cap enabled by default
-- [Supabase pricing](https://supabase.com/pricing)
+- Databases use the same usage-based billing as app services
+- CPU: $20/vCPU/month, RAM: $10/GB/month, Volume storage: $0.15/GB/month
+- A small Postgres instance typically costs $0.50-1.00/month
+- All usage draws from the plan's included credit ($5 Hobby, $20 Pro)
+- [Railway pricing](https://railway.com/pricing)
 
-**RLS is not required for Prometheus tools:**
-The widely-cited RLS risk (83% of exposed Supabase databases involve RLS misconfigurations) applies to public-facing apps where anyone can hit the Supabase REST API directly. Prometheus tools are internal-only, sitting behind Cloudflare Zero Trust Access which restricts entry to `@traba.work` emails. Access control happens at the network layer before any request reaches the app or database. Server-side access control in the application is sufficient — RLS adds complexity for no meaningful security benefit in this threat model.
+**Persistence:** Databases come with an attached volume — data survives deployments and restarts.
+
+**Important — databases are unmanaged:**
+Railway provides the infrastructure, but you are responsible for backups, performance tuning, security, and monitoring. For Tier 2 internal tools with disposable prototype data, this is fine. For apps that accumulate irreplaceable data, set up automated backups (e.g., `pg_dump` on a cron schedule to cloud storage).
 
 **References:**
-- [Supabase Edge Functions limits](https://supabase.com/docs/guides/functions/limits) (2-second CPU time limit, 20 MB bundle)
-- [Supabase vs Neon comparison (Bytebase)](https://www.bytebase.com/blog/neon-vs-supabase/)
+- [Railway database docs](https://docs.railway.com/databases)
+- [Railway PostgreSQL](https://docs.railway.com/databases/postgresql)
 
 ---
 
 ## ORM: Prisma
 
-When a project needs structured database access beyond simple queries, use Prisma. It generates a fully type-safe client from the schema file — queries get autocomplete and compile-time type checking with zero manual typing. Works across both tiers: SQLite for local prototypes, Postgres for Supabase-backed deployed apps. Schema is the source of truth for both the database and TypeScript types.
+When a project needs structured database access beyond simple queries, use Prisma. It generates a fully type-safe client from the schema file — queries get autocomplete and compile-time type checking with zero manual typing. Works across both tiers: SQLite for local prototypes, Postgres on Railway for deployed apps. Schema is the source of truth for both the database and TypeScript types.
 
 **Runner-up — Drizzle:** Lighter weight, closer to raw SQL. Worth considering if bundle size or query performance becomes a bottleneck. Prisma's schema-first workflow is more approachable for AI-generated code.
 

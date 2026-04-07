@@ -12,7 +12,7 @@ version: 2.0.0
 ## Tier Detection
 
 Read the repo before choosing a stack. Use what's already there:
-- If the project has Supabase, Railway, or Cloudflare dependencies, it's a deployed app. Keep using them.
+- If the project has Railway Postgres, Railway, or Cloudflare dependencies, it's a deployed app. Keep using them.
 - If the project has SQLite, JSON files, or no persistence, it's a local prototype. Keep it simple.
 - If the project is brand new, default to local: SQLite or JSON files, no external services.
 

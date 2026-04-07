@@ -11,7 +11,7 @@ What are we actually protecting against? Non-engineers building apps with AI ass
 | Failure Mode | Example | Likelihood | Impact |
 |-------------|---------|------------|--------|
 | **Secret leakage** | API key committed to GitHub, auth token in a tweet | Very high — 45% of AI-generated code introduces vulnerabilities ([Veracode 2025](https://www.veracode.com/resources/gen-ai-code-security-report)) | Immediate financial loss, data breach |
-| **Data exposure** | Admin dashboard with no auth, Supabase table with no RLS | Very high — 83% of exposed Supabase DBs have RLS misconfig | PII leak, regulatory risk |
+| **Data exposure** | Admin dashboard with no auth, database with no access controls | Very high | PII leak, regulatory risk |
 | **Credential escalation** | Citizen dev gets access to production DB via shared Railway project | Medium | Full production data access |
 
 ### Serious failure modes (SHOULD prevent)
@@ -108,7 +108,7 @@ For projects that eventually need more rigor (high traffic, sensitive data), bra
 | **Scoped API keys** | Every key issued has narrowest possible permissions and hard rate limits. |
 | **Billing alerts** | Cloud billing alerts at 50%, 80%, 100% of budget on all accounts. Non-negotiable. |
 | **Railway env var isolation** | Railway has no per-project access control — any team Member can view all env vars. Sensitive values must be sealed (see Layer 7). |
-| **Environment isolation** | Supabase projects for citizen dev apps are separate from production Supabase. Separate Railway projects. |
+| **Environment isolation** | Railway projects for citizen dev apps are separate from production infrastructure. Separate Railway projects per app. |
 | **Network isolation** | Citizen-developed apps cannot directly access production data stores. Use the Traba MCP data layer (BigQuery RBAC). |
 | **No new GCP projects** | Never create a new GCP project. Use the existing `traba-ops` project. Contact a GCP admin to provision service accounts, enable APIs, and grant IAM permissions. |
 
@@ -135,7 +135,6 @@ Every Prometheus project starts with a comprehensive `.gitignore`. The Claude sk
 *.pem
 *.key
 credentials.json
-supabase.json
 infisical-token
 
 # Data
@@ -167,7 +166,7 @@ Classify every environment variable by sensitivity. The scoring rubric from the 
 
 | Score | Classification | Examples | Action |
 |-------|---------------|----------|--------|
-| **5 — Critical** | Meta-secrets, production DB credentials, keys that bypass access controls | GCP service account JSON, Supabase `service_role` key, Postgres passwords, backend signing keys (`NEST_SERVER_PRIVATE_KEY`) | **Must seal.** Rotate quarterly. |
+| **5 — Critical** | Meta-secrets, production DB credentials, keys that bypass access controls | GCP service account JSON, backend signing keys (`NEST_SERVER_PRIVATE_KEY`) | **Must seal.** Rotate quarterly. |
 | **4 — High** | API keys with write access or broad permissions, credentials for external services | Anthropic API keys, Stripe secret keys, Firebase API keys, BigQuery credentials | **Must seal.** Rotate semi-annually. |
 | **2 — Low** | API keys with limited blast radius, non-critical service config | Narrow-scope read-only keys, webhook URLs with built-in auth | **Seal recommended.** |
 | **1 — Minimal** | Non-secret configuration | `PORT`, `NODE_ENV`, `LOG_LEVEL`, `RAILWAY_PUBLIC_DOMAIN`, public URLs, project IDs | **Do not seal.** Plain Railway env vars are fine. |
@@ -192,15 +191,13 @@ Revoke secrets on stopped or failed Railway projects immediately. A dead service
 
 These are enforced by Claude skills — advisory, not deterministic. They guide the AI to generate secure code by default.
 
-### Supabase RLS
+### Database access control
 
-The Claude skill must instruct:
-- Enable RLS on every table at creation time
-- Generate explicit RLS policies (not just `enable`)
-- Default policy: authenticated users can read their own rows, only row owner can write
-- For admin tables: restrict to specific user roles
+The Railway Postgres template enables TCP proxy by default, which exposes the database to the public internet. **Disable TCP proxy** on every Prometheus database (Service → Settings → Networking → remove TCP proxy). With TCP proxy disabled, the database is only reachable over Railway's private network within the project.
 
-This is the #1 security risk for Supabase-based apps. 83% of exposed databases involve RLS misconfiguration ([VibeAppScanner](https://vibeappscanner.com/supabase-row-level-security)).
+Once TCP proxy is disabled, `DATABASE_URL` does not need to be sealed — the password is never exposed outside Railway's private network. If TCP proxy is left enabled for any reason (e.g., external tooling needs direct DB access), `DATABASE_URL` must be sealed (Score 5).
+
+For apps that need fine-grained access control beyond network isolation, use Prisma middleware or application-level authorization checks.
 
 ### CORS configuration
 
@@ -212,7 +209,7 @@ The skill should instruct Claude to never set `Access-Control-Allow-Origin: *`. 
 
 Instruct Claude to validate at system boundaries:
 - Sanitize user input
-- Use parameterized queries (Supabase client does this by default)
+- Use parameterized queries (Prisma does this by default)
 - Validate file uploads (type, size)
 
 ### Error handling
@@ -236,12 +233,12 @@ For this scale (< 20 users, internal tools), a full incident response plan is ov
 4. Review the provider's usage dashboard for unauthorized access during the exposure window
 5. Add the secret pattern to GitHub push protection custom patterns if it wasn't caught
 
-### Exposed Supabase database
+### Exposed database
 
-1. Enable RLS immediately on exposed tables
-2. Review Supabase auth logs for unauthorized access
-3. Rotate the `anon` and `service_role` keys
-4. Check if any data was exfiltrated
+1. Immediately rotate the `DATABASE_URL` credential (change the Postgres password)
+2. Check Railway logs and Postgres logs for unauthorized access
+3. Update the sealed Railway env var with the new connection string
+4. Verify the database is only accessible over Railway's private network (no public TCP proxy enabled)
 
 ---
 

@@ -206,4 +206,4 @@ Ready-made prompts to send the operator. They run these in Claude Code.
 | Railway (Traba team) | railway.com | Any eng on the team |
 | GCP OAuth (traba-app) | console.cloud.google.com | Any eng on the project |
 | Cloudflare DNS | dash.cloudflare.com | Any eng on the team |
-| Supabase | supabase.com | Any eng (creates project, shares with operator) |
+| Railway Postgres | railway.com (add DB in project) | Any eng on the team |

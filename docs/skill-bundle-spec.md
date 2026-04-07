@@ -13,7 +13,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Constitution** | Role, principles, requirements gathering, security, development hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
 | **Project documentation** | README + SPEC.md, decision records | `~/.claude/rules/traba-spec.md` (always active) |
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
-| **Deployment** | Railway, Cloudflare Access, Supabase | `~/.claude/skills/deployment/` (loaded when relevant) |
+| **Deployment** | Railway, Cloudflare Access, Railway Postgres | `~/.claude/skills/deployment/` (loaded when relevant) |
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
@@ -71,7 +71,7 @@ Skills load when Claude determines they're relevant. Each is a directory with a 
 
 Reads the repo to detect what tier the project is at:
 - New project or local-only dependencies (SQLite, JSON files): default to simple, local stack.
-- Supabase/Railway/Cloudflare dependencies already present: keep using them.
+- Railway Postgres/Railway/Cloudflare dependencies already present: keep using them.
 
 **Backend:** TypeScript + bun (runtime and package manager), oxlint, oxfmt, tsgo. Python + uv for scripts/data work.
 
@@ -85,7 +85,7 @@ Includes `.gitignore` and `.pre-commit-config.yaml` as reference files — Claud
 
 **Trigger:** User wants to deploy, share, or make their app accessible to others.
 
-Covers the full Tier 2 stack: Railway (single service: backend serves frontend as static files, auto-deploy on push), in-app Google OAuth for auth (see authentication skill), Supabase for shared persistence, and Railway environment variables for secrets.
+Covers the full Tier 2 stack: Railway (single service: backend serves frontend as static files, auto-deploy on push), in-app Google OAuth for auth (see authentication skill), Railway Postgres for shared persistence, and Railway environment variables for secrets.
 
 ### Authentication
 
