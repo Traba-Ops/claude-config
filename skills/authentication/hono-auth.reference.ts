@@ -100,3 +100,27 @@ authRoutes.post("/verify", async (c) => {
 
   return c.json({ ...user, token });
 });
+
+/**
+ * GET /api/auth/me
+ *
+ * Returns the current user from the session JWT, or 401.
+ * Frontend calls this on page load to verify the stored token
+ * server-side before trusting localStorage.
+ */
+authRoutes.get("/me", async (c) => {
+  const header = c.req.header("Authorization");
+  if (!header?.startsWith("Bearer "))
+    return c.json({ error: "Not authenticated" }, 401);
+  try {
+    const { payload } = await jwtVerify(header.slice(7), SESSION_SECRET);
+    const user: UserPayload = {
+      email: payload.email as string,
+      name: payload.name as string,
+      picture: payload.picture as string,
+    };
+    return c.json(user);
+  } catch {
+    return c.json({ error: "Invalid session" }, 401);
+  }
+});

@@ -4,7 +4,7 @@ description: |
   Google OAuth authentication for Traba apps. Use when: (1) adding login to a new or existing app,
   (2) user asks about auth, sessions, or access control.
   Covers: Google OAuth setup, server-side verification, session JWTs, domain restriction.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Authentication
@@ -36,7 +36,16 @@ User clicks "Sign in with Google"
   → Backend calls Google userinfo API, checks hd === "traba.work"
   → Backend issues 7-day session JWT (signed with jose)
   → Frontend stores session JWT in localStorage
-  → All subsequent /api/* requests use Authorization: Bearer <session JWT>
+
+Page load (returning user):
+  → Frontend reads JWT from localStorage
+  → Frontend calls GET /api/auth/me with Bearer token
+  → Backend verifies JWT, returns user profile (or 401)
+  → Frontend sets auth state from server response (not localStorage)
+  → On 401: clear localStorage, show login page
+
+Authenticated requests:
+  → All /api/* requests use Authorization: Bearer <session JWT>
   → Backend verifies session JWT on each request (fast, no external call)
 ```
 
@@ -84,7 +93,7 @@ Wrap the app in `<GoogleOAuthProvider clientId={clientId}>` in `main.tsx`. Throw
 
 Use the `useGoogleLogin` hook from `@react-oauth/google` with `hosted_domain: 'traba.work'` for the login page.
 
-Auth state lives in localStorage: session JWT + user display info (name, picture, email). On app load, check for an existing session. On 401 from any API call, clear localStorage and show the login page. Logout clears localStorage and calls `googleLogout()`.
+Auth state lives in localStorage: session JWT + user display info (name, picture, email). On app load, verify the session server-side by calling `GET /api/auth/me` with the stored JWT — don't initialize auth state from localStorage alone. Set auth state only after the server confirms the session is valid. On 401 from `/auth/me` or any API call, clear localStorage and show the login page. Logout clears localStorage and calls `googleLogout()`.
 
 ## Gotchas
 
@@ -100,6 +109,8 @@ These are the things that cause failures on first attempt. Pay close attention:
 
 **Google profile images reject external referrers.** Add `referrerPolicy="no-referrer"` to avatar `<img>` tags.
 
+**Don't initialize auth state synchronously from localStorage.** Always verify server-side first via `/api/auth/me`, then set state. Otherwise a page refresh with an expired JWT flashes the authenticated UI before bouncing to login.
+
 **SPA shell must be public.** The React login page needs to load before the user can authenticate. Serve static files without auth. Only gate `/api/*` routes.
 
 **Vite dev proxy required.** Frontend (Vite on :5173) and backend (Hono on :3000) run on different ports in dev. Add `server.proxy` in `vite.config.ts` to forward `/api/*` to the backend. Both servers must be running.
@@ -111,6 +122,7 @@ These are the things that cause failures on first attempt. Pay close attention:
 | `hosted_domain: 'traba.work'` | UX convenience — filters Google account picker |
 | Google userinfo API `hd` check | Server enforcement — rejects non-traba.work domains |
 | Session JWT (jose, HS256, 7-day) | Stateless session — no external API calls after login |
+| `/api/auth/me` endpoint | Session verification on page load — catches expired tokens before first API call |
 | `requireAuth` middleware | Gates all `/api/*` routes except auth endpoints |
 | SPA shell served without auth | Login page must load — the shell code is not sensitive |
 
