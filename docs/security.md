@@ -28,7 +28,7 @@ What are we actually protecting against? Non-engineers building apps with AI ass
 |-------------|----------------|
 | Dependency vulnerabilities in prototypes | Dependabot alerts are sufficient. Full SBOM tracking is overkill for < 20 users. |
 | Formal threat modeling per project | An engineer doing PR review catches the same issues faster. Formalize when you have external-facing apps. |
-| SSO enforcement for internal tools | Cloudflare Zero Trust OTP + email domain restriction is sufficient. Add SAML when onboarding/offboarding friction becomes a risk. |
+| SSO enforcement for internal tools | In-app Google OAuth with `@traba.work` domain restriction is sufficient. Add SAML when onboarding/offboarding friction becomes a risk. |
 | Comprehensive SIEM / security logging | Basic cloud provider logging is sufficient. Invest when you have incident response requirements. |
 | Container image scanning | Not relevant until you have multi-service container infrastructure. |
 | Compliance automation (SOC 2, ISO 27001) | No customer is asking for it from internal tools. |
@@ -203,7 +203,7 @@ For apps that need fine-grained access control beyond network isolation, use Pri
 
 The skill should instruct Claude to never set `Access-Control-Allow-Origin: *`. Instead:
 - Specify the exact allowed origins
-- For internal tools behind Cloudflare Access, CORS is largely irrelevant (requests come from the same domain)
+- For internal tools using in-app Google OAuth, CORS should match the app's domain (requests come from the same origin)
 
 ### Input validation
 

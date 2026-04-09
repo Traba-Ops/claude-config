@@ -8,7 +8,7 @@ The time commitment on your end should be minimal, and it's a great opportunity 
 
 **Prometheus** is our framework that lets non-engineers build and deploy tools with Claude Code. The operator has already installed the Prometheus skills (claude-config) and has been building a local app. Your job is to get their app from their laptop to a URL at `something.traba.work` with Traba Google login.
 
-**The stack:** TypeScript monorepo (Hono backend + React frontend) on bun, deployed to Railway, Cloudflare Zero Trust for auth. See the [prescriptive stack](stack.md) for full details.
+**The stack:** TypeScript monorepo (Hono backend + React frontend) on bun, deployed to Railway, in-app Google OAuth for auth. See the [prescriptive stack](stack.md) for full details.
 
 **Your role:** Infrastructure and access. The operator and their Claude handle the code.
 
@@ -50,25 +50,13 @@ Quick sanity check:
 
 ---
 
-## Step 3: Invite Them to Railway
+## Step 3: Set Up Auth
 
-Add them to the **Traba Railway team** — not a personal account. If they already deployed on a personal account (this has happened), they'll need to move to the team.
+**Auth must be working locally before anything goes to Railway.** An unprotected Railway deploy puts the app on the public internet with no login.
 
-**Don't let them deploy yet.** Auth needs to be set up first (next step).
+**In-app Google OAuth is the standard.** Cloudflare Zero Trust was retired due to the hard 50-seat limit on the free tier. Legacy apps may still use it, but all new apps should use in-app OAuth.
 
----
-
-## Step 4: Set Up Auth
-
-**Do this BEFORE they deploy.** An unprotected Railway deploy puts the app on the public internet with no login.
-
-There are two auth methods. **In-app Google OAuth is preferred** — Cloudflare Zero Trust has a hard 50-seat limit across all Traba apps, so it doesn't scale as we add more tools and users.
-
-### Option A: In-App Google OAuth (preferred)
-
-The operator builds auth into the app using the authentication skill. You create the GCP credentials and verify the implementation.
-
-**Create the OAuth Client ID:**
+### Create the OAuth Client ID
 
 1. Go to [GCP Console](https://console.cloud.google.com/) → **traba-app** project → **APIs & Services → Credentials**
 2. Click **+ Create Credentials → OAuth client ID**
@@ -77,7 +65,7 @@ The operator builds auth into the app using the authentication skill. You create
 5. Add **Authorized JavaScript origins**:
    - `http://localhost:5173` (Vite dev server)
    - `http://localhost:3000` (backend dev server)
-   - `https://appname.traba.work` (production Cloudflare domain)
+   - `https://appname.traba.work` (production domain — add now so it's ready for deploy)
 6. Leave **Authorized redirect URIs** empty (not needed for implicit grant)
 7. Copy the **Client ID** and give it to the operator
 
@@ -85,41 +73,48 @@ The operator builds auth into the app using the authentication skill. You create
 
 **Important:** Do NOT use `gcloud alpha iap oauth-clients create` — those create locked IAP clients that can't have JavaScript origins added. Must use the Console UI.
 
-Give the operator the Client ID. They'll set it as `VITE_GOOGLE_CLIENT_ID` in their `.env.local` and prompt Claude to add auth. Once they've built it, verify:
-- The server checks `hd === "traba.work"` from Google's userinfo API (not client-side)
-- `/api/auth` routes are mounted before `requireAuth` middleware
-- Non-`@traba.work` accounts are rejected
+### Send the Client ID to the operator
 
-### Option B: Cloudflare Zero Trust (legacy)
+The Client ID is not a secret — it's baked into the frontend JS and visible to anyone who views source. Just send it to the operator directly (Slack, etc.). They'll give it to Claude, who writes the `.env.local`.
 
-Use when in-app auth isn't feasible. No code changes needed — Cloudflare gates the entire app as a reverse proxy.
+**Don't send them the full downloaded JSON** — it also contains a `client_secret` which isn't used in the Prometheus auth flow but is still sensitive. Only share the Client ID string (ends in `.apps.googleusercontent.com`).
 
-1. Go to [Cloudflare Zero Trust](https://dash.cloudflare.com/) → Access → Controls → Applications
-2. Click **Add an application** → Self-hosted
-3. Configure:
-   - **Application name:** Descriptive (e.g., `mycelium`, `onboarding-funnel`)
-   - **Subdomain:** `appname` under `traba.work`
-   - **Session duration:** 7 days
-4. Add an Access Policy:
-   - Select **"All traba.work"**
-5. Under Login Methods:
-   - Select **Google SSO**
-   - Unselect One-time PIN
-   - Toggle on **"Apply instant authentication"**
+### Operator builds auth locally
 
-Look at existing apps (`mycelium`, `onboarding-funnel`) as templates.
+The operator gives the Client ID to Claude, who sets up their `apps/web/.env.local` and adds auth using the authentication skill.
+
+### Verify before moving on
+
+Once they've built it, verify locally:
+- [ ] Google login popup appears and works with a `@traba.work` account
+- [ ] The server checks `hd === "traba.work"` from Google's userinfo API (not client-side)
+- [ ] `/api/auth` routes are mounted before `requireAuth` middleware
+- [ ] Non-`@traba.work` accounts are rejected
+- [ ] API routes return 401 without a valid session
+
+**Don't proceed to deployment until auth is working locally.** This is the most common source of "app is publicly accessible with no login" incidents.
 
 ---
 
-## Step 5: Deploy + Connect Domain
+## Step 4: Deploy to Railway
 
-**If using in-app Google OAuth (Option A)**, set these Railway env vars before the first deploy:
-- `VITE_GOOGLE_CLIENT_ID` — the Client ID from Step 4 (must be set before first deploy — it's a build-time variable)
+### Invite them to the Railway team
+
+Add them to the **Traba Railway team** — not a personal account. If they already deployed on a personal account (this has happened), they'll need to move to the team.
+
+### Set env vars before the first deploy
+
+Set these Railway env vars before the first deploy:
+- `VITE_GOOGLE_CLIENT_ID` — the Client ID from Step 3 (must be set before first deploy — it's a build-time variable baked into the frontend JS)
 - `SESSION_SECRET` — generate with `openssl rand -hex 32` and **seal it** after setting
 
-Then give the operator the green light. Have them prompt:
+### Deploy
+
+Have them prompt:
 
 > "Deploy my app to Railway"
+
+### Connect the custom domain
 
 Once the Railway project exists:
 
@@ -136,7 +131,7 @@ Once the Railway project exists:
 
 ---
 
-## Step 6: Add Secrets (If Needed)
+## Step 5: Add Secrets (If Needed)
 
 If the app needs API keys or credentials, have them prompt:
 
@@ -146,7 +141,7 @@ You may need to provide the actual key values (e.g., a Gemini API key from Jeff/
 
 ---
 
-## Step 7: Verify the Full Loop
+## Step 6: Verify the Full Loop
 
 Walk through this with the operator:
 

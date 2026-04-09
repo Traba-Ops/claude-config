@@ -54,7 +54,7 @@ Most of the setup can be done by the operator with Claude. Engineers provide acc
    - Grant access to Railway (if needed)
    - Quick review of the code for obvious security issues
    - Add secrets as Railway environment variables
-   - Configure Cloudflare Access (email domain restriction for @traba.work)
+   - Create GCP OAuth Client ID for in-app Google auth (see [eng runbook](eng-runbook.md#step-4-set-up-auth))
 
 4. **Post-setup:**
    - Builder pushes directly to main — deploys are automatic
@@ -111,9 +111,9 @@ That spec is used to rebuild in the core repo with full production standards (co
 - Pushes directly to main on their own repos
 
 ### Engineer (promotion facilitator)
-- Grants access to infrastructure (Railway, Cloudflare)
+- Grants access to infrastructure (Railway, GCP OAuth Client ID)
 - Quick security review of the code
-- Adds secrets as Railway environment variables and sets up auth (Cloudflare Access)
+- Adds secrets as Railway environment variables and verifies auth implementation
 
 ### Claude (orchestrator)
 - Enforces the prescriptive stack via skills

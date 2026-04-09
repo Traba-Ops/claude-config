@@ -4,7 +4,7 @@ description: |
   Google OAuth authentication for Traba apps. Use when: (1) adding login to a new or existing app,
   (2) user asks about auth, sessions, or access control.
   Covers: Google OAuth setup, server-side verification, session JWTs, domain restriction.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Authentication
@@ -25,6 +25,11 @@ Before adding auth, check the project structure. If it doesn't match:
 ### GCP credentials
 
 The operator needs a `VITE_GOOGLE_CLIENT_ID` from their engineer buddy before you can wire up the frontend. If they don't have one yet, tell them to ask their engineer to create a Google OAuth Client ID in the GCP Console (see the eng runbook). You can build everything else in the meantime — just leave the env var placeholder.
+
+The Client ID is not a secret — it's baked into the frontend JS and visible to anyone who views source. The engineer will send it directly (Slack, etc.). Once the operator gives you the Client ID, write it to `apps/web/.env.local`:
+```
+VITE_GOOGLE_CLIENT_ID=<client_id>
+```
 
 ## Architecture
 

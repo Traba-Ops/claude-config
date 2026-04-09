@@ -20,7 +20,7 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | Database | Railway Postgres | Supabase, Neon | Railway databases are regular services billed by actual compute — a small Postgres costs ~$1/mo. No per-project VM surcharge. Prisma handles all data access, so Supabase's REST API layer adds cost without benefit. |
 | ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Railway). Migration tooling built in. |
 | Deploy | Railway (backend serves frontend) | Render | Single service: backend builds + serves frontend as static files. Avoids Nixpacks monorepo confusion. Use `railway.json` for explicit build/start. Even frontend-only apps use Railway with a minimal static server. |
-| Auth (shared apps) | Cloudflare Zero Trust | Google OAuth | Free for up to 50 users. Email-domain restriction (`@traba.work`) with magic link OTP. No IdP setup required. |
+| Auth (shared apps) | In-app Google OAuth | Cloudflare Zero Trust | Unlimited users, no platform lock-in, full control over sessions and routes. Zero Trust hit the 50-seat free tier cap. |
 | Secrets | Railway environment variables | Infisical, Doppler | Simplest option — no extra tooling. Railway dashboard is accessible to operators. Secrets stay in the deployment platform where they're used. |
 | Version control | GitHub | — | Existing Traba infrastructure. |
 
@@ -184,34 +184,45 @@ Railway has the best developer experience for going from zero to deployed. Templ
 
 ---
 
-## Auth: Cloudflare Zero Trust (Access)
+## Auth: In-App Google OAuth
 
-**Why Cloudflare Access over roll-your-own OAuth:**
-Zero setup complexity for the user. Sits in front of the app as a reverse proxy — when someone hits the URL, they authenticate before the request reaches the origin. Built-in One-Time PIN provider means no external IdP setup required.
+**Why in-app Google OAuth over infrastructure-level auth gating:**
+Unlimited users, no platform lock-in, full control over session duration and per-route authorization. The auth code is minimal (~80 lines of Hono middleware) and Claude scaffolds it from the reference implementation in the authentication skill.
 
-**How it works for Traba:**
-1. Deploy app to Railway
-2. Create an Access Application pointing to the app's domain
-3. Add policy: Include = "Emails ending in @traba.work", Login method = One-time PIN
-4. Users visit the app, enter their `@traba.work` email, get a 6-digit code, and they're in
+**How it works:**
+1. Frontend uses `@react-oauth/google` for the Google login popup
+2. Backend verifies the Google access token via the userinfo API
+3. Backend checks `hd === "traba.work"` (domain restriction, server-side only)
+4. Backend issues a 7-day session JWT signed with `jose`
+5. Frontend stores the JWT in localStorage, sends as `Authorization: Bearer` header
+6. All `/api/*` routes require the `requireAuth` middleware
 
-**Pricing:**
-- Free: Up to 50 users (covers Traba's needs)
-- Pay-as-you-go: $7/user/month for advanced features
-- [Zero Trust pricing](https://www.cloudflare.com/plans/zero-trust-services/)
+See the [authentication skill](../skills/authentication/SKILL.md) for the full implementation guide and reference code.
 
-**Best practices:**
-- Use a dedicated subdomain for internal tools (e.g., `tools.traba.work`)
-- Define an "All Traba Employees" Access Group (email domain = @traba.work) and reuse across apps
-- Set session duration to 7 days for dashboards, 1-4 hours for sensitive tools
-- Start with OTP, add Google Workspace SSO later if needed — Access supports both simultaneously
+### Alternatives considered
 
-**Automation:** Cloudflare has a Terraform provider for defining Access apps and policies as code. Worth doing once the number of protected apps exceeds 5-10 to prevent config drift.
+| Option | Pros | Cons | Status |
+|--------|------|------|--------|
+| **In-app Google OAuth** | Free, unlimited users, works on any host, full control over sessions/routes | ~80 lines of auth code per app | **Active — preferred** |
+| **Cloudflare Zero Trust** | Zero code, sits in front of the app as a reverse proxy | Hard 50-seat cap on free tier, then $7/user/month | **Retired** — hit the seat cap |
+| **GCP Identity-Aware Proxy (IAP)** | Free, unlimited users, zero code, centralized access control in GCP console | Only works on GCP compute (Cloud Run, App Engine, GKE) — not compatible with Railway | **Not viable** — would require moving off Railway |
+
+### Why not GCP IAP?
+
+IAP is a reverse proxy that sits in front of GCP compute services and forces Google authentication before requests reach the app — conceptually the same pattern as Cloudflare Zero Trust but GCP-native. It's free with no per-user cap, which solves the Zero Trust pricing problem.
+
+However, IAP only works on GCP compute. Prometheus deploys to Railway for operational simplicity (single-service deploys, Nixpacks auto-detection, one-click Postgres, accessible to non-engineers). Adopting IAP would mean migrating all Prometheus hosting to Cloud Run, setting up GCP load balancers, and switching Cloudflare DNS to DNS-only mode to avoid proxy conflicts (Cloudflare's orange-cloud proxy mode can cause redirect loops with IAP). That infrastructure migration would cost far more than maintaining the in-app OAuth pattern.
+
+If Prometheus hosting ever moves to GCP compute, IAP becomes worth revisiting — it would eliminate all per-app auth code. Until then, in-app OAuth provides equivalent security with no platform lock-in.
+
+### Cloudflare DNS (still active)
+
+Cloudflare is still used for DNS — custom domains for deployed apps (`appname.traba.work`) use Railway's one-click Cloudflare integration to create DNS records. This is just DNS resolution, not Zero Trust — no authentication happens at the Cloudflare layer.
 
 **References:**
-- [Cloudflare Access policies](https://developers.cloudflare.com/cloudflare-one/access-controls/policies/)
-- [One-time PIN setup](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)
-- [Terraform automation](https://developers.cloudflare.com/cloudflare-one/api-terraform/)
+- [Google OAuth for web apps](https://developers.google.com/identity/protocols/oauth2)
+- [GCP IAP overview](https://cloud.google.com/iap/docs/concepts-overview)
+- [Cloudflare Zero Trust pricing](https://www.cloudflare.com/plans/zero-trust-services/)
 
 ---
 

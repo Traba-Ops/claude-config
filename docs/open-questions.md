@@ -7,7 +7,7 @@
 | # | Decision | Detail |
 |---|----------|--------|
 | 1 | **GitHub org:** `traba-ops` | Separate org under enterprise umbrella. $21/seat. Jeff set it up. |
-| 2 | **Database access control:** auth is the gate, not DB-level policies | Cloudflare Zero Trust + Railway private networking is the security boundary. DB-level policies are overkill for internal tools. |
+| 2 | **Database access control:** auth is the gate, not DB-level policies | In-app Google OAuth + Railway private networking is the security boundary. DB-level policies are overkill for internal tools. |
 | 4 | **Claude subscription:** Team plan | Operators start on base, upgrade as needed. |
 | 5 | **Railway reliability:** non-issue | Chosen for DX, not reliability. If an app can't tolerate downtime, it should be Tier 1. |
 
@@ -25,7 +25,7 @@ Until this is ready, operators use workarounds: nightly data pulls to local file
 
 ### 6. Offboarding
 
-When someone leaves Traba, need to revoke: GitHub (`traba-ops`), Cloudflare Zero Trust, Railway access, and transfer ownership of any Tier 2 apps.
+When someone leaves Traba, need to revoke: GitHub (`traba-ops`), Railway access, and transfer ownership of any Tier 2 apps. For legacy apps still on Cloudflare Zero Trust, revoke that access too.
 
 **Action:** Add Prometheus to the offboarding checklist.
 
@@ -43,7 +43,7 @@ Per Tier 2 app: ~$5-10/mo (Railway $5 + ~$1 for database, everything else free o
 
 ### 10. Sensitive data and authentication
 
-Any deployed app must be behind auth. Default: Cloudflare Zero Trust with `@traba.work` email restriction. Already covered in [Security Guardrails](security.md) and [Prescriptive Stack](stack.md). Just make sure the deployment skill gates on auth setup.
+Any deployed app must be behind auth. Default: in-app Google OAuth with `@traba.work` domain restriction (server-side enforcement). Already covered in [Security Guardrails](security.md) and [Prescriptive Stack](stack.md). Just make sure the deployment skill gates on auth setup.
 
 ---
 
@@ -54,6 +54,6 @@ Any deployed app must be behind auth. Default: Cloudflare Zero Trust with `@trab
 | No formal asset inventory | When the commit feed becomes insufficient for tracking (~30+ projects) |
 | No automated deployment pipeline for Tier 2 promotion | When promotion requests exceed 2-3/week |
 | ~~No template repo with all scaffolding pre-configured~~ | Resolved — scaffolding templates are reference files in the project-setup skill, delivered via skillshare |
-| No Terraform for Cloudflare Access apps | When more than 10 apps are protected by Zero Trust |
+| ~~No Terraform for Cloudflare Access apps~~ | Resolved — retired Zero Trust in favor of in-app Google OAuth (no infrastructure-level config to manage) |
 | Skills not versioned with semver | When skill changes cause breaking behavior in existing projects |
 | ~~No formal promotion runbook~~ | Resolved — [Eng Runbook](eng-runbook.md) covers the full Tier 3→2 process end to end |
