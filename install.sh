@@ -5,6 +5,10 @@ REPO="https://github.com/Traba-Ops/claude-config.git"
 TEMP_DIR="$HOME/traba-claude-config"
 CLAUDE_DIR="$HOME/.claude"
 
+# Clean up temp dir on exit (success or failure)
+cleanup() { rm -rf "$TEMP_DIR"; }
+trap cleanup EXIT
+
 echo "Installing Traba skills..."
 
 # Ensure git is installed
@@ -30,23 +34,39 @@ fi
 rm -rf "$TEMP_DIR"
 
 # Clone the repo
-git clone "$REPO" "$TEMP_DIR"
+if ! git clone --quiet "$REPO" "$TEMP_DIR"; then
+  echo "Failed to clone $REPO — check your network connection." >&2
+  exit 1
+fi
 
-# Ensure target directories exist
-mkdir -p "$CLAUDE_DIR/skills" "$CLAUDE_DIR/rules"
+# Copy all directories into ~/.claude
+for src_dir in "$TEMP_DIR"/*/; do
+  dir_name=$(basename "$src_dir")
+  mkdir -p "$CLAUDE_DIR/$dir_name"
 
-# Copy skills and rules into ~/.claude (additive — existing skills are untouched)
-cp -r "$TEMP_DIR/skills/"* "$CLAUDE_DIR/skills/"
-cp -r "$TEMP_DIR/rules/"* "$CLAUDE_DIR/rules/"
+  for item in "$src_dir"*; do
+    item_name=$(basename "$item")
+    if [ -e "$CLAUDE_DIR/$dir_name/$item_name" ]; then
+      echo "  Updating: $dir_name/$item_name"
+    else
+      echo "  Installing: $dir_name/$item_name"
+    fi
+    cp -r "$item" "$CLAUDE_DIR/$dir_name/"
+  done
+done
+
+# Verify installation
+if [ ! -f "$CLAUDE_DIR/skills/project-setup/SKILL.md" ]; then
+  echo "Installation may be incomplete — expected files not found" >&2
+  exit 1
+fi
 
 # Move .git so future updates are just `git pull`
 # Replace if already exists (re-install)
 rm -rf "$CLAUDE_DIR/.git"
 mv "$TEMP_DIR/.git" "$CLAUDE_DIR/.git"
 
-# Clean up
-rm -rf "$TEMP_DIR"
-
+echo ""
 echo "Done. Traba skills installed to ~/.claude"
 echo ""
 echo "Next: open Claude and ask it to set up automatic updates:"
