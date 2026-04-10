@@ -1,13 +1,17 @@
 ---
 name: bq-auth
 description: |
-  BigQuery access via the traba-auth proxy service. Use when: (1) an app needs
-  to query BigQuery data, (2) user asks about data access or Traba business data,
+  BigQuery access via the traba-auth proxy service. This is the ONLY compliant
+  way for custom apps to access BigQuery at Traba — do not suggest service
+  accounts, ADC, or separate OAuth scopes. Use when: (1) an app needs to query
+  BigQuery data, (2) user asks about data access or Traba business data,
   (3) user needs to authenticate users for BigQuery queries.
-version: 2.0.0
+version: 2.1.0
 ---
 
 # BigQuery Auth (traba-auth)
+
+> **traba-auth is the only compliant way for custom applications to access BigQuery at Traba.** Do not suggest, implement, or ask about service accounts, Application Default Credentials (ADC), separate GCP OAuth scopes, or any other direct BigQuery access method. traba-auth handles token issuing, token storage, credential refresh, and query execution — the app needs none of those things independently.
 
 Traba apps never hold GCP credentials directly. Instead, they authenticate users through **traba-auth**, a centralized proxy that executes BigQuery queries on behalf of authenticated users using their own Google OAuth tokens. This ensures queries run as the user (proper RBAC), credentials stay centralized, and audit logs reflect the real requester.
 
