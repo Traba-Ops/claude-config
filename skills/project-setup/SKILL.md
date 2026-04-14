@@ -21,7 +21,7 @@ Read the repo before choosing a stack. Use what's already there:
 - **Language:** TypeScript by default. Only use Python when the use case requires a Python-specific library (ML/data science with pandas/numpy/scikit-learn, or wrapping a Python-only API). If in doubt, use TypeScript.
 - **Backend framework:** Hono (TypeScript) or FastAPI (Python). Do NOT use Express, NestJS, Koa, or Flask.
 - **Frontend:** React + Vite
-- **Styling:** CSS custom properties from the Traba design system (see design system skill). Do NOT use MUI, styled-components, or Tailwind — the design system tokens are the component library.
+- **Styling:** Tailwind CSS v4 (`@tailwindcss/vite`) + shadcn/ui (Radix primitives). Design tokens mapped in `app.css` via `@theme` — see the design system skill for the token mapping and reference components. Add `@/*` path alias to tsconfig + vite config for shadcn imports. Add components as needed: `bunx shadcn@latest add tooltip sheet select`.
 - **State management:** TanStack React Query for data fetching, React Context for app state. No Redux.
 - **Routing:** React Router DOM
 - **Local data storage:** SQLite (single file, no setup) or JSON files for simple data

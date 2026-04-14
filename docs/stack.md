@@ -12,7 +12,7 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | Toolchain (TS) | bun + oxlint + oxfmt + tsgo | npm/yarn + eslint + prettier + tsc | Aligns with `traba-server-node` tooling. Fast, minimal config. |
 | Toolchain (Python) | uv | pip + virtualenv | Single tool replaces pip, pip-tools, virtualenv, and pyenv. |
 | Frontend framework | React + Vite | Next.js | Vite is faster, simpler, and already used in Traba's core frontend. No SSR needed for internal tools. |
-| Styling | CSS custom properties (design system) | MUI, Tailwind | Design system tokens applied directly. No framework overhead, guaranteed Traba visual consistency. |
+| Styling | Tailwind CSS v4 + shadcn/ui | MUI, raw CSS | Design tokens mapped into Tailwind's `@theme`. shadcn/ui (Radix primitives) for interactive components (tooltips, sheets, selects). Co-located utility classes, tree-shakeable, no monolithic stylesheets. |
 | State management | TanStack React Query + Context | Redux | Query handles server state, Context handles app state. No boilerplate. Matches core Traba frontend. |
 | Routing | React Router DOM | TanStack Router | Mature, matches core Traba frontend. |
 | Testing | Vitest | Jest | Native Vite integration, faster. Same API as Jest. |
@@ -79,7 +79,11 @@ The project-setup skill handles this so new projects get the right toolchain aut
 
 **Why Vite over Next.js:** Internal tools don't need SSR, server components, or file-based routing. Vite is faster to start, simpler to configure, and already used in Traba's core frontend (business-app, ops-console, aperture-vite all use Vite).
 
-**Why no component library (MUI, Ant Design, etc.):** The Traba design system skill defines all tokens, components, and patterns via CSS custom properties. MUI's opinionated styling fights the design system and adds ~300KB of bundle weight. Operators should use the design system tokens directly.
+**Styling — Tailwind CSS + shadcn/ui:** The Traba design system tokens (colors, typography, spacing) are mapped into Tailwind's `@theme` block so all values are available as utility classes (e.g., `text-midnight-100`, `bg-violet-10`, `border-gray-20`). This replaces raw CSS custom properties with co-located utility classes — styling is visible in the JSX, not split across a growing stylesheet.
+
+For interactive components (tooltips, slide-out panels, selects, dialogs), use shadcn/ui — copy-paste Radix primitives that render unstyled DOM, styled with Tailwind. Install components as needed via `bunx shadcn@latest add <component>`. This gives accessible, tested implementations without the bundle weight or opinionated styling of MUI/Ant Design.
+
+**Setup:** Add `@tailwindcss/vite` to the Vite config, create `app.css` with `@import "tailwindcss"` and map all design tokens in a `@theme` block. The design system skill has the full token-to-theme mapping. Initialize shadcn with `bunx shadcn@latest init -t vite -b radix -p nova -y` (requires `@/*` path alias in tsconfig).
 
 **State management:** TanStack React Query handles data fetching and caching. React Context handles app-level state (user, auth, preferences). This matches the core Traba frontend and avoids Redux boilerplate.
 
