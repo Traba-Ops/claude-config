@@ -112,7 +112,7 @@ Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execut
 
 **Trigger:** Operator points at a view in an internal tool (Retool, admin panel, BI dashboard) and asks Claude to pull the same data, or Claude's first public-API attempt returns a different row count or totals than the operator sees on screen.
 
-Walks the operator through inspecting the browser network tab on the source screen, extracting the real filter logic from the underlying GraphQL/REST call, playing it back in plain English for confirmation, and reconstructing the query against the sanctioned public API (traba-auth/BigQuery, Traba REST, or Traba MCP). Enforces row-count reconciliation before shipping and prohibits hitting the inspected custom endpoint directly from the operator's app.
+Claude drives a Chrome instance via the `chrome-devtools` MCP (`navigate_page`, `list_network_requests`, `get_network_request`, etc.), captures the real GraphQL/REST call that loads the view, extracts the filters, plays them back to the operator in plain English for confirmation, and reconstructs the query against the sanctioned public API (traba-auth/BigQuery, Traba REST, or Traba MCP). Enforces row-count reconciliation before shipping and prohibits hitting the inspected custom endpoint directly from the operator's app. Includes a manual fallback for cases where the MCP isn't available.
 
 ---
 

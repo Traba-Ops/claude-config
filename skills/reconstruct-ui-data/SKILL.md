@@ -1,25 +1,27 @@
 ---
 name: reconstruct-ui-data
 description: |
-  Reconstruct data that the operator can see in an internal UI (Retool, admin panel,
-  BI tool, dashboard) but that you cannot pull through the public API. Use when:
-  (1) the operator points to a view, table, or chart in another app and asks you to
-  fetch "the same data", (2) your first attempt using the public API returns fewer
-  rows, different columns, or different totals than what the operator sees on screen,
-  (3) the operator says "but it's right there on the page" after you reported the
-  data isn't available.
-version: 1.0.0
+  Reconstruct data that the operator can see in an internal UI (Retool, admin
+  panel, BI tool, dashboard) but that you cannot pull through the public API.
+  Drive the browser yourself with the chrome-devtools MCP — do not walk the
+  operator through dev tools. Use when: (1) the operator points to a view,
+  table, or chart in another app and asks you to fetch "the same data",
+  (2) your first attempt using the public API returns fewer rows, different
+  columns, or different totals than what the operator sees on screen, (3) the
+  operator says "but it's right there on the page" after you reported the data
+  isn't available.
+version: 2.0.0
 ---
 
 # Reconstruct UI Data
 
-Operators often see data in an internal tool (Retool, a vendor admin panel, a BI dashboard, a saved view in our own product) and ask you to reproduce it in the app they're building with you. That data is almost never a plain public-API call — it's a **custom query an admin wired up inside that tool**, usually a GraphQL or SQL query with filters, joins, and sorting baked in. The public API does not have an endpoint that returns "whatever that view is showing", because that view is configuration, not a product feature.
+Operators often see data in an internal tool (Retool, a vendor admin panel, a BI dashboard, a saved view in our own product) and ask you to reproduce it in the app they're building with you. That data is almost never a plain public-API call — it's a **custom query an admin wired up inside that tool**, usually a GraphQL or SQL query with filters, joins, and sorting baked in. The public API has no endpoint that returns "whatever that view is showing", because that view is configuration, not a product feature.
 
-You cannot guess your way through this. If you try, you will return data that looks close but is subtly wrong — wrong totals, missing rows, stale filters — and the operator will only notice after they've acted on it. The fix is to have the operator inspect the network call behind that view, extract the real filter logic, and rebuild it against the public API the operator's app already has access to.
+You cannot guess your way through this. If you try, you will return data that looks close but is subtly wrong — wrong totals, missing rows, stale filters — and the operator will only notice after they've acted on it. The fix is to **drive the browser yourself with the chrome-devtools MCP**, capture the real network call behind the view, extract the filter logic, and rebuild it against the public API the operator's app already uses.
 
 ## Recognize the pattern
 
-Stop and run this workflow the moment you hit any of these signals:
+Run this workflow the moment you hit any of these signals:
 
 - The operator points at a screen in another tool and says "grab this data" or "show this in my app"
 - Your public-API query returns **a different row count, different columns, or different aggregates** than the number on the operator's screen
@@ -28,43 +30,51 @@ Stop and run this workflow the moment you hit any of these signals:
 
 Once you hit one of these, do **not** keep tweaking filters by guesswork. Move to the walkthrough below.
 
-## Walkthrough — run this with the operator
+## Prerequisites — the chrome-devtools MCP
 
-The operator has to do the browser steps; you cannot see their screen. Give them one step at a time, wait for the result, then move on. Be patient — most operators have never opened dev tools before.
+This skill assumes the `chrome-devtools` MCP server is configured. It exposes tools like `navigate_page`, `list_network_requests`, `get_network_request`, `take_snapshot`, `take_screenshot`, `click`, `fill`, and `wait_for` that let you drive a Chrome instance and read its network activity.
 
-### Step 1 — Confirm you're in the right situation
+If the MCP is not configured, ask the operator to install it:
 
-Ask the operator:
+> I need to use the chrome-devtools MCP to inspect the page you're looking at. Can you add it to your MCP config? The repo is `https://github.com/ChromeDevTools/chrome-devtools-mcp`. Once it's installed, restart this session and we'll continue.
 
-> Which app or page are you looking at? Can you send me the URL, and describe exactly what you want me to reproduce — the columns, the filters you can see, and the number of rows or the total?
+There is a manual fallback at the bottom of this file for the rare case where the MCP can't be installed — use it only as a last resort.
 
-If the operator says "just build me something like X" and there's no concrete screen to point at, this skill doesn't apply — build from their description. This skill is for when there's a real, visible source of truth they want you to match.
+## Walkthrough
 
-### Step 2 — Open dev tools on the source screen
+### Step 1 — Get the target from the operator
 
-Tell the operator:
+Ask:
 
-> Open the page where you see the data. Then:
-> 1. Right-click anywhere on the page and click **Inspect** (Chrome/Arc/Edge) or **Inspect Element** (Safari — you may need to enable the Develop menu first in Settings → Advanced).
-> 2. In the panel that opens, click the **Network** tab along the top.
-> 3. Click the **Fetch/XHR** filter (in Chrome it's a button row near the search box). This hides image/CSS/font requests so you only see data calls.
-> 4. With the Network tab open, **reload the page** (Cmd+R). You'll see a list of requests fill in.
+> Send me the URL of the page with the data you want, and tell me exactly what I should match: the columns, the filters you can see, and the row count or total that's shown on the page.
 
-### Step 3 — Find the request that loads the view
+If there's no concrete screen to point at, this skill doesn't apply — build from their description. This skill is only for when the operator has a real, visible source of truth they want you to match.
 
-Tell the operator:
+### Step 2 — Navigate to the page
 
-> Look down the list for a request whose name includes `graphql`, `query`, `api`, or the name of the data you're looking at (e.g., `shifts`, `workers`). Click it. On the right, click the **Payload** or **Request** tab.
->
-> Paste me whatever is in that panel. If you see a big block labeled `query` with curly braces and field names, that's what I need. If you see a `variables` block too, send that as well.
+Use `navigate_page` to open the URL in the MCP's Chrome instance. Then call `take_snapshot` (or `take_screenshot`) to see what actually rendered.
 
-If the operator finds multiple candidate requests, ask them to click each one and look for the one whose **Response** tab contains the row count or a value they recognize from the screen.
+Three common outcomes:
 
-If the tool uses REST rather than GraphQL, the request will look like `/api/something?filter=...&sort=...` — ask the operator to send the full URL and the response body.
+- **You see the expected data.** Skip to Step 3.
+- **You see a login screen.** Tell the operator: *"I've opened the page in a controlled Chrome window. It's asking me to log in — can you complete the login in that window? Let me know when you're through and I'll continue."* Wait for confirmation, then re-snapshot to verify.
+- **You see the app but the data hasn't loaded.** The view may require an interaction (clicking a tab, applying a saved filter, picking a date range). Ask the operator what they clicked on the way to the data, then reproduce it with `click` / `fill` / `wait_for`.
+
+### Step 3 — Capture the network request that loads the view
+
+Once the data is visible on the page:
+
+1. Call `list_network_requests` to enumerate recent requests.
+2. Filter to requests that look like data calls — paths containing `graphql`, `query`, `api`, or the name of the entity (e.g., `shifts`, `workers`, `requirements`). Ignore static assets (`.js`, `.css`, images, fonts, analytics beacons).
+3. For each candidate, call `get_network_request` and check the response body. The right request is the one whose response row count (or a visible key field) matches what's on the screen.
+
+If the app paginates, the first page's response may only have 50–100 rows while the screen shows a total of thousands — match on the total count field in the response, not the array length.
+
+If nothing in the initial load matches, the view probably refetches on interaction. Re-trigger the view (click the "Refresh" button, change and re-apply a filter) and call `list_network_requests` again to capture the new call.
 
 ### Step 4 — Extract the filter logic
 
-From what the operator pastes, pull out:
+From the captured request, pull out:
 
 - **Entity / table** — what is being queried (`shifts`, `workers`, `requirements`, etc.)
 - **Filters / `where` clauses** — status, date range, region, anything that narrows the result
@@ -72,34 +82,37 @@ From what the operator pastes, pull out:
 - **Limit / pagination** — top N, offset
 - **Fields selected** — the columns the operator sees
 
-Write these out in plain English and play them back to the operator before you build anything:
+GraphQL requests have this in the `query` + `variables` body fields. REST requests have it in the URL query string or JSON body. If the request body has a full SQL `query` string (common in Retool / Hasura-style tools), read the `WHERE`, `ORDER BY`, and `LIMIT` clauses directly.
 
-> Here's what I'm seeing: you want active shifts in the Northeast region, started in the last 14 days, sorted by start time descending, showing shift ID, business name, worker count, and status. Does that match what you see on the page?
+### Step 5 — Play the filters back to the operator
 
-This is the single most important step. If the operator corrects any of these, fix it before writing code. An hour of coding against the wrong filter is the failure mode this skill exists to prevent.
+Before writing any code, confirm in plain English:
 
-### Step 5 — Map to the public API the operator's app uses
+> Here's what the page is actually loading: active shifts in the Northeast region, starting in the next 24 hours, with at least one unfilled slot, sorted by start time ascending. Does that match what you want?
 
-The operator's app already has a sanctioned way to pull Traba data. Use it — do not try to hit the custom GraphQL endpoint you just inspected. That endpoint is private to the tool the operator was looking at, is not stable, and will break without notice.
+This is the single most important step. If the operator corrects any of it, fix it before writing code. An hour of coding against the wrong filter is the failure mode this skill exists to prevent.
 
-The mapping depends on the app's stack:
+### Step 6 — Reconstruct against the public API
 
-- If the app uses **traba-auth / BigQuery** (most Traba operator apps), translate the filters into a `SELECT ... FROM \`traba-data.<dataset>.<table>\` WHERE ...` query. See the bq-auth skill for the query pattern and for the dataset/table names.
-- If the app uses a **Traba REST endpoint**, translate the filters into query parameters on that endpoint.
-- If the app uses the **Traba MCP**, use the MCP tools to filter and paginate.
+The operator's app already has a sanctioned way to pull Traba data. Use it — **do not hit the custom endpoint you just inspected from the operator's app**. That endpoint is private to the tool the operator was looking at, is not stable, and will break without notice. The inspection is evidence, not an integration point.
 
-If the entity or field the operator wants isn't in the public data surface at all, stop and tell them — do not silently fall back to a different data source. Ask them to confirm in #data or #claudecodestuff that the data they need is exposed through the public surface before you spend time building around it.
+Map the extracted filters onto whichever public surface the app is using:
 
-### Step 6 — Verify row-for-row against the source
+- **traba-auth / BigQuery** (most Traba operator apps): translate to a `SELECT ... FROM \`traba-data.<dataset>.<table>\` WHERE ...` query. See the bq-auth skill for the query pattern and for dataset/table names.
+- **Traba REST endpoint**: translate filters into query parameters.
+- **Traba MCP**: use the MCP tools to filter and paginate.
 
-Before calling this done, reconcile:
+If the entity or field the operator wants isn't exposed through the public surface at all, stop and tell them — do not silently fall back to a different data source. Ask them to confirm in #data or #claudecodestuff that the data is exposed through the public surface before you spend time building around it.
 
-- Run the reconstructed query.
-- Compare the **total row count** to the count visible on the source screen. They should match exactly. If they're off by even one, the filters are wrong.
-- Spot-check **3–5 specific rows** by ID (or another stable key) — pick rows the operator can see on the source screen and confirm they appear in your result with the same values.
-- If an aggregate (sum, average, count) is shown on the source screen, recompute it from your data and check that it matches.
+### Step 7 — Reconcile before shipping
 
-If any of these don't match, go back to Step 4 with the operator — don't paper over the mismatch with an extra filter you invented.
+Before calling it done:
+
+- Compare the **total row count** from your reconstructed query to the count visible on the source screen. They should match exactly. If they're off by one, your filters are wrong.
+- Spot-check **3–5 specific rows** by a stable key (ID, shift ID, worker ID). Pick rows the operator can see on the source screen and confirm they appear in your result with the same values. You can use `evaluate_script` through the MCP to pull specific values off the page if the operator can't read them off easily.
+- If the source screen shows an aggregate (sum, average, count), recompute it from your data and confirm it matches.
+
+If anything doesn't match, go back to Step 4 — do not paper over the mismatch with an extra filter you invented.
 
 ## Example — reconstructing a custom Retool view
 
@@ -107,9 +120,10 @@ An operator has a Retool dashboard that shows "Shifts needing attention" and ask
 
 You run the workflow:
 
-1. Operator opens dev tools on the Retool page, reloads, and sends you the GraphQL payload. It's a `shiftsNeedingAttention` query with `variables: { regionIds: ["ne-1","ne-2"], hoursUntilStart: 24, minUnfilledSlots: 1 }`.
-2. You translate the filters back to plain English and confirm with the operator: *"Shifts in Northeast regions, starting within 24 hours, with at least one unfilled slot."* Operator confirms.
-3. You rewrite the query against BigQuery via traba-auth:
+1. Operator sends the Retool URL. You call `navigate_page` and hit a Google SSO screen. Operator logs in in the controlled window, confirms, you re-snapshot and see the dashboard with 87 rows.
+2. You call `list_network_requests`, spot a POST to `/api/v1/graphql` whose response contains 87 items, and call `get_network_request` to read the body. The query is `shiftsNeedingAttention` with `variables: { regionIds: ["ne-1","ne-2"], hoursUntilStart: 24, minUnfilledSlots: 1 }`.
+3. You play it back: *"Shifts in Northeast regions, starting within 24 hours, with at least one unfilled slot."* Operator confirms.
+4. You rewrite against BigQuery via traba-auth:
 
    ```sql
    SELECT shift_id, business_name, start_time, slots_total - slots_filled AS unfilled
@@ -120,28 +134,40 @@ You run the workflow:
    ORDER BY start_time ASC
    ```
 
-4. You run it, get 87 rows, spot-check three shift IDs against the Retool screen, and confirm they match before shipping.
+5. You run it, get 87 rows, spot-check three shift IDs against the dashboard, and confirm before shipping.
 
 ## Gotchas
 
-**The custom GraphQL endpoint is not the public API.** It belongs to whatever admin tool the operator was looking at. Do not hardcode its URL, do not re-hit it from the operator's app, do not treat its schema as stable. The only thing it gives you is evidence about what filters the view applies. Always translate to the sanctioned public API before writing code in the app.
+**The custom endpoint is not the public API.** It belongs to whatever admin tool you inspected. Do not hardcode its URL, do not re-hit it from the operator's app, do not treat its schema as stable. The only thing the inspection gives you is evidence about what filters the view applies. Translate to the sanctioned public API before writing code.
 
-**Some UI filters live in client code, not the request.** If the operator's screen has a search box or a toggle that filters the table after it loads, the network request may return more rows than the screen shows. Ask the operator: "Is the number you see on screen the full result of the query, or is there a search/filter on the page that's narrowing it further?"
+**Some filters live in client code, not the request.** If the page has a search box or a toggle that filters the table after it loads, the network request may return more rows than the screen shows. Match the on-screen total (usually shown as "N results"), not the array length in the network response. If the two disagree, there's client-side filtering — ask the operator what the search/toggle is set to and include it in your filters.
 
-**Timezones will bite you.** UI dashboards usually display timestamps in the viewer's local timezone, while BigQuery stores UTC. A "today" filter in the UI is not `DATE(start_time) = CURRENT_DATE()` in UTC — it's whatever `today` is in the operator's timezone. Ask the operator what timezone the screen is showing before writing date filters.
+**Timezones will bite you.** UI dashboards display timestamps in the viewer's local timezone; BigQuery stores UTC. A "today" filter in the UI is not `DATE(start_time) = CURRENT_DATE()` in UTC — it's whatever `today` is in the operator's timezone. Ask the operator what timezone the screen is showing before writing date filters.
 
-**Pagination hides rows.** Many dashboards only load the first 50–100 rows until you scroll. The row count at the top of the screen (e.g., "1,240 results") is the true total — match that, not what's currently rendered in the DOM.
+**Pagination hides rows.** Many dashboards load only the first page until you scroll. The summary count at the top of the screen (e.g., "1,240 results") is the true total — match that, not the rendered DOM.
 
-**Aggregates can be computed client-side.** A "total hours" or "average pay" number may be summed in the tool after the rows load. If your reconstructed query returns the same rows, the aggregate will match automatically. Don't try to reproduce an aggregate endpoint if none exists — compute it the same way the UI does.
+**Aggregates can be computed client-side.** A "total hours" or "average pay" number may be summed in the tool after the rows load. If your rows match, the aggregate will match automatically. Don't go looking for an aggregate endpoint that doesn't exist — compute it the same way the UI does.
 
-**Admin-saved views drift.** The filters in the dashboard were correct whenever the admin last edited them. They are not guaranteed to still be what the operator actually wants today. When playing back the filters in Step 4, ask: *"Are these still the filters you care about, or is the view out of date?"*
+**Admin-saved views drift.** The filters in the dashboard were correct when the admin last edited them. They are not guaranteed to still be what the operator actually wants. During Step 5, ask: *"Are these still the filters you care about, or is the view out of date?"*
+
+**Session state matters.** The MCP's Chrome is a fresh profile by default — no cookies, no SSO, no saved state. Expect to ask the operator to log in the first time, and expect session timeouts on longer workflows.
+
+## Fallback — if the chrome-devtools MCP can't be installed
+
+Only use this if the MCP genuinely isn't available (locked-down machine, time pressure, MCP install blocked). In that case, walk the operator through the inspection manually:
+
+1. Ask them to open the page, open dev tools (right-click → Inspect), switch to the **Network** tab, click the **Fetch/XHR** filter, and reload.
+2. Have them find the request whose name contains `graphql`, `query`, `api`, or the entity name, click it, and paste the **Payload** / **Request** body (and **Response** row count) into the chat.
+3. Proceed from Step 4 above.
+
+This is slower and more error-prone than driving the browser yourself — prefer the MCP.
 
 ## Rules
 
-- **Never** guess at filters when the operator pointed at a concrete screen — run the inspection workflow
+- **Always** use the chrome-devtools MCP to capture the request — do not guess, do not walk the operator through dev tools unless the MCP is genuinely unavailable
 - **Always** play the extracted filters back to the operator in plain English before writing code
 - **Always** reconcile the row count (and at least one aggregate, if shown) before calling the work done
 - **Never** call the custom endpoint you inspected from the operator's app — it is evidence, not an integration point
 - **Never** silently fall back to a different dataset if the public API doesn't expose what the operator needs — stop and escalate
-- If the operator cannot get to dev tools (locked-down browser, mobile, SSO-wrapped tool), ask them to send a screenshot of the full view **including** any filter controls and visible totals, and reconstruct from that plus their description
 - Keep the reconstructed query in the app's code, not in a throwaway script — the operator will want to re-run it later
+- If the MCP's Chrome needs a login, ask the operator to complete it in the controlled window and wait for confirmation before continuing
