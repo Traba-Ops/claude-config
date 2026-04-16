@@ -17,6 +17,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
+| **Reconstruct UI data** | Inspect a custom UI query and rebuild it on the public API | `~/.claude/skills/reconstruct-ui-data/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
@@ -106,6 +107,12 @@ Single-file skill (~620 lines): critical rules at top, then all tokens, componen
 **Trigger:** User needs to query BigQuery data, access Traba business data, or authenticate users for data access.
 
 Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
+
+### Reconstruct UI Data
+
+**Trigger:** Operator points at a view in an internal tool (Retool, admin panel, BI dashboard) and asks Claude to pull the same data, or Claude's first public-API attempt returns a different row count or totals than the operator sees on screen.
+
+Walks the operator through inspecting the browser network tab on the source screen, extracting the real filter logic from the underlying GraphQL/REST call, playing it back in plain English for confirmation, and reconstructing the query against the sanctioned public API (traba-auth/BigQuery, Traba REST, or Traba MCP). Enforces row-count reconciliation before shipping and prohibits hitting the inspected custom endpoint directly from the operator's app.
 
 ---
 
