@@ -3,14 +3,16 @@ name: reconstruct-ui-data
 description: |
   Reconstruct data that the operator can see in an internal UI (Retool, admin
   panel, BI tool, dashboard) but that you cannot pull through the public API.
-  Drive the browser yourself with the chrome-devtools MCP — do not walk the
-  operator through dev tools. Use when: (1) the operator points to a view,
-  table, or chart in another app and asks you to fetch "the same data",
-  (2) your first attempt using the public API returns fewer rows, different
-  columns, or different totals than what the operator sees on screen, (3) the
-  operator says "but it's right there on the page" after you reported the data
-  isn't available.
-version: 2.0.0
+  First check whether the public API already covers the ask (BigQuery datasets,
+  Traba MCP, documented REST endpoints); only if it doesn't, drive the browser
+  yourself with the chrome-devtools MCP to capture the real request — install
+  it automatically if it is missing. Do not walk the operator through dev
+  tools. Use when: (1) the operator points to a view, table, or chart in
+  another app and asks you to fetch "the same data", (2) your first attempt
+  using the public API returns fewer rows, different columns, or different
+  totals than what the operator sees on screen, (3) the operator says "but
+  it's right there on the page" after you reported the data isn't available.
+version: 2.1.0
 ---
 
 # Reconstruct UI Data
@@ -30,16 +32,6 @@ Run this workflow the moment you hit any of these signals:
 
 Once you hit one of these, do **not** keep tweaking filters by guesswork. Move to the walkthrough below.
 
-## Prerequisites — the chrome-devtools MCP
-
-This skill assumes the `chrome-devtools` MCP server is configured. It exposes tools like `navigate_page`, `list_network_requests`, `get_network_request`, `take_snapshot`, `take_screenshot`, `click`, `fill`, and `wait_for` that let you drive a Chrome instance and read its network activity.
-
-If the MCP is not configured, ask the operator to install it:
-
-> I need to use the chrome-devtools MCP to inspect the page you're looking at. Can you add it to your MCP config? The repo is `https://github.com/ChromeDevTools/chrome-devtools-mcp`. Once it's installed, restart this session and we'll continue.
-
-There is a manual fallback at the bottom of this file for the rare case where the MCP can't be installed — use it only as a last resort.
-
 ## Walkthrough
 
 ### Step 1 — Get the target from the operator
@@ -50,17 +42,55 @@ Ask:
 
 If there's no concrete screen to point at, this skill doesn't apply — build from their description. This skill is only for when the operator has a real, visible source of truth they want you to match.
 
-### Step 2 — Navigate to the page
+### Step 2 — Check whether the public API already covers it
+
+Before doing any browser inspection, check whether the data the operator wants is already reachable through the public API the app uses. Browser inspection is the expensive path — skip it whenever an existing endpoint or dataset covers the ask.
+
+Look in this order:
+
+1. **BigQuery via traba-auth.** This is where most Traba operator data lives. Check the bq-auth skill for the dataset conventions, and list the tables in `traba-data.marts.*` and `traba-data.staging.*` that plausibly contain the entity (e.g., for "shifts needing attention", start with `traba-data.marts.shifts`). You can run small exploratory queries (`SELECT column_name FROM \`traba-data.<dataset>.INFORMATION_SCHEMA.COLUMNS\` WHERE table_name = '<table>'`) to confirm the fields match what the operator sees.
+2. **Traba MCP**, if configured on the operator's machine. List its available resources/tools and grep for the entity the operator wants.
+3. **Any REST API docs the app already uses.** If the app has an OpenAPI/Swagger URL, a `docs/` folder, or a known API reference shared with you in a previous turn, search there for an endpoint that returns the entity with the filters the operator described.
+4. **Ask the operator** if they know of a documented endpoint for this. Operators often know which dashboards were built against public APIs versus custom admin queries.
+
+If you find an endpoint or table that plausibly covers the ask:
+
+- Write the query using the filters the operator described in Step 1.
+- Run it and compare the row count and 3-5 sample rows to the source screen (the reconciliation from Step 9 — do it now, up front).
+- If it matches, you're done: skip the rest of the walkthrough and ship.
+- If the row count is off but the entity is clearly right, the filter set on the source screen is richer than what the operator described. Continue to Step 3 to inspect the real filters.
+
+If no public endpoint covers the entity at all, continue to Step 3 — but confirm with the operator first: *"I don't see this data in the public API. Want me to inspect the page to find out what it's querying, and then we can confirm whether the underlying data is available through sanctioned channels?"* Sometimes the answer is "ask data to expose it" rather than "reverse-engineer around the gap".
+
+### Step 3 — Make sure the chrome-devtools MCP is installed
+
+Only reach this step if Step 2 didn't resolve the ask. Check whether you have access to `navigate_page`, `list_network_requests`, and `get_network_request`. If those tools are already in your tool list, skip to Step 4.
+
+If they aren't, install the MCP yourself by running:
+
+```bash
+claude mcp add chrome-devtools --scope user -- npx chrome-devtools-mcp@latest
+```
+
+This adds the server to the operator's user-scope MCP config so it's available across every project, not just this one. Requirements are minimal: Node 16+ (standard on any recent machine) and Chrome installed (operators running Traba apps already have this). No API keys or auth setup.
+
+After running the command, tell the operator:
+
+> I just installed the chrome-devtools MCP so I can drive Chrome directly for this kind of task. You need to restart this Claude Code session before the new tools load — close this conversation, start a new one, and tell me "continue reconstructing the view from the <tool-name> page" and I'll pick up from here.
+
+Do **not** try to continue the workflow in the same session — the new MCP tools do not appear until Claude Code reloads. Stop here and wait for the restart.
+
+### Step 4 — Navigate to the page
 
 Use `navigate_page` to open the URL in the MCP's Chrome instance. Then call `take_snapshot` (or `take_screenshot`) to see what actually rendered.
 
 Three common outcomes:
 
-- **You see the expected data.** Skip to Step 3.
+- **You see the expected data.** Skip to Step 5.
 - **You see a login screen.** Tell the operator: *"I've opened the page in a controlled Chrome window. It's asking me to log in — can you complete the login in that window? Let me know when you're through and I'll continue."* Wait for confirmation, then re-snapshot to verify.
 - **You see the app but the data hasn't loaded.** The view may require an interaction (clicking a tab, applying a saved filter, picking a date range). Ask the operator what they clicked on the way to the data, then reproduce it with `click` / `fill` / `wait_for`.
 
-### Step 3 — Capture the network request that loads the view
+### Step 5 — Capture the network request that loads the view
 
 Once the data is visible on the page:
 
@@ -72,7 +102,7 @@ If the app paginates, the first page's response may only have 50–100 rows whil
 
 If nothing in the initial load matches, the view probably refetches on interaction. Re-trigger the view (click the "Refresh" button, change and re-apply a filter) and call `list_network_requests` again to capture the new call.
 
-### Step 4 — Extract the filter logic
+### Step 6 — Extract the filter logic
 
 From the captured request, pull out:
 
@@ -84,7 +114,7 @@ From the captured request, pull out:
 
 GraphQL requests have this in the `query` + `variables` body fields. REST requests have it in the URL query string or JSON body. If the request body has a full SQL `query` string (common in Retool / Hasura-style tools), read the `WHERE`, `ORDER BY`, and `LIMIT` clauses directly.
 
-### Step 5 — Play the filters back to the operator
+### Step 7 — Play the filters back to the operator
 
 Before writing any code, confirm in plain English:
 
@@ -92,7 +122,7 @@ Before writing any code, confirm in plain English:
 
 This is the single most important step. If the operator corrects any of it, fix it before writing code. An hour of coding against the wrong filter is the failure mode this skill exists to prevent.
 
-### Step 6 — Reconstruct against the public API
+### Step 8 — Reconstruct against the public API
 
 The operator's app already has a sanctioned way to pull Traba data. Use it — **do not hit the custom endpoint you just inspected from the operator's app**. That endpoint is private to the tool the operator was looking at, is not stable, and will break without notice. The inspection is evidence, not an integration point.
 
@@ -104,7 +134,7 @@ Map the extracted filters onto whichever public surface the app is using:
 
 If the entity or field the operator wants isn't exposed through the public surface at all, stop and tell them — do not silently fall back to a different data source. Ask them to confirm in #data or #claudecodestuff that the data is exposed through the public surface before you spend time building around it.
 
-### Step 7 — Reconcile before shipping
+### Step 9 — Reconcile before shipping
 
 Before calling it done:
 
@@ -112,7 +142,7 @@ Before calling it done:
 - Spot-check **3–5 specific rows** by a stable key (ID, shift ID, worker ID). Pick rows the operator can see on the source screen and confirm they appear in your result with the same values. You can use `evaluate_script` through the MCP to pull specific values off the page if the operator can't read them off easily.
 - If the source screen shows an aggregate (sum, average, count), recompute it from your data and confirm it matches.
 
-If anything doesn't match, go back to Step 4 — do not paper over the mismatch with an extra filter you invented.
+If anything doesn't match, go back to Step 6 — do not paper over the mismatch with an extra filter you invented.
 
 ## Example — reconstructing a custom Retool view
 
@@ -148,7 +178,7 @@ You run the workflow:
 
 **Aggregates can be computed client-side.** A "total hours" or "average pay" number may be summed in the tool after the rows load. If your rows match, the aggregate will match automatically. Don't go looking for an aggregate endpoint that doesn't exist — compute it the same way the UI does.
 
-**Admin-saved views drift.** The filters in the dashboard were correct when the admin last edited them. They are not guaranteed to still be what the operator actually wants. During Step 5, ask: *"Are these still the filters you care about, or is the view out of date?"*
+**Admin-saved views drift.** The filters in the dashboard were correct when the admin last edited them. They are not guaranteed to still be what the operator actually wants. During Step 7, ask: *"Are these still the filters you care about, or is the view out of date?"*
 
 **Session state matters.** The MCP's Chrome is a fresh profile by default — no cookies, no SSO, no saved state. Expect to ask the operator to log in the first time, and expect session timeouts on longer workflows.
 
@@ -158,13 +188,15 @@ Only use this if the MCP genuinely isn't available (locked-down machine, time pr
 
 1. Ask them to open the page, open dev tools (right-click → Inspect), switch to the **Network** tab, click the **Fetch/XHR** filter, and reload.
 2. Have them find the request whose name contains `graphql`, `query`, `api`, or the entity name, click it, and paste the **Payload** / **Request** body (and **Response** row count) into the chat.
-3. Proceed from Step 4 above.
+3. Proceed from Step 6 above.
 
 This is slower and more error-prone than driving the browser yourself — prefer the MCP.
 
 ## Rules
 
-- **Always** use the chrome-devtools MCP to capture the request — do not guess, do not walk the operator through dev tools unless the MCP is genuinely unavailable
+- **Always** check the public API (BigQuery datasets, Traba MCP, documented REST endpoints) for an existing path to the data before reaching for browser inspection — inspection is the expensive fallback, not the default
+- **Always** use the chrome-devtools MCP to capture the request when inspection is needed — do not guess, do not walk the operator through dev tools unless the MCP is genuinely unavailable
+- **Always** install the chrome-devtools MCP automatically if it is missing (`claude mcp add chrome-devtools --scope user -- npx chrome-devtools-mcp@latest`) and pause for a session restart before continuing
 - **Always** play the extracted filters back to the operator in plain English before writing code
 - **Always** reconcile the row count (and at least one aggregate, if shown) before calling the work done
 - **Never** call the custom endpoint you inspected from the operator's app — it is evidence, not an integration point
