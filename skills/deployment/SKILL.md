@@ -3,7 +3,7 @@ name: deployment
 description: |
   Deployment guidance for sharing Traba apps. Use when: (1) user wants to deploy,
   share, or make their app accessible to others, (2) user asks about hosting or URLs.
-  Covers: Railway, Cloudflare Access auth, Railway env vars for secrets, Railway Postgres.
+  Covers: Railway, in-app Google OAuth auth, Railway env vars for secrets, Railway Postgres.
 version: 1.0.0
 ---
 
@@ -82,18 +82,34 @@ After every deploy, **monitor the deploy logs until the service is healthy.** Do
 If the operator is watching, give them status updates as you go. If you hit something you can't fix, explain what's wrong and what's needed.
 
 
-## Authentication — MUST be set up BEFORE deploying
+## Authentication — MUST be wired into the app BEFORE deploying
 
-**Do NOT deploy to Railway until auth is in place.** An unprotected deploy means the app is publicly accessible on the internet with no auth.
+**Do NOT deploy to Railway until Google OAuth is in the app.** An unprotected deploy means the app is publicly accessible on the internet with no auth. Cloudflare Access is retired as an auth option (see `docs/decisions/2026-04-09-auth-in-app-oauth-over-zero-trust.md`). **In-app Google OAuth is the only supported auth path.**
 
-**Preferred: In-app Google OAuth.** The operator builds auth into the app using the authentication skill. The app handles login via `@react-oauth/google` on the frontend and verifies tokens server-side. An engineer creates the GCP credentials and verifies the implementation. Key requirements before deploying:
+Follow the [authentication skill](../authentication/SKILL.md) to build the auth layer. You can write all the code yourself — no engineer involvement needed for the code. The only thing you cannot self-serve is the GCP OAuth Client ID.
 
-1. Engineer creates an OAuth Client ID in GCP Console and provides it to the operator
-2. Set `VITE_GOOGLE_CLIENT_ID` as a Railway env var **before the first deploy** (it's build-time)
-3. Set `SESSION_SECRET` as a Railway env var and **seal it**
-4. Verify the app rejects non-`@traba.work` accounts
+### What you do
+- Scaffold the auth layer using the authentication skill (server-side domain check, session JWTs, login screen, Bearer token on all `/api/*`, `/webhooks/*` exempt)
+- Build and test locally without the real Client ID — fall back to a dummy value, the login button will fail gracefully
+- Prepare the deploy: confirm the repo is in `Traba-Ops`, confirm you're on the Traba Railway team, push to the branch Railway watches
 
-**Fallback: Cloudflare Zero Trust.** If in-app auth isn't feasible, an engineer can set up Cloudflare Access as a reverse proxy. No code changes needed, but Cloudflare has a 50-seat limit across all Traba apps — not scalable long-term. Reach out to Sumeet, Jeff, or Moreno to set this up.
+### What an engineer does (Sumeet / Jeff / Moreno)
+- Creates the OAuth Client ID in GCP Console → `console.cloud.google.com` → APIs & Services → Credentials
+- Sets up the Authorized JavaScript Origins to include the Railway production URL (e.g., `https://appname-production.up.railway.app`)
+- Hands you the Client ID (it's public — not a secret, baked into the frontend)
+
+### Env vars for the auth layer
+Set these in Railway → Variables **before the first deploy that allows user traffic**:
+1. `VITE_GOOGLE_CLIENT_ID` (or `GOOGLE_CLIENT_ID` for vanilla-JS apps) — engineer provides this
+2. `SESSION_SECRET` — generate with `openssl rand -hex 32`, seal it
+
+### Verification checklist
+- [ ] Opening the Railway URL shows the login screen, not the app UI
+- [ ] Clicking "Sign in with Google" opens the Google popup
+- [ ] A non-`@traba.work` Google account gets rejected with an `Unauthorized domain` error
+- [ ] A `@traba.work` account lands in the app and sees data
+- [ ] Hitting any `/api/*` endpoint without a Bearer token returns 401
+- [ ] `/webhooks/*` is reachable without auth (if applicable — secured via HMAC instead)
 
 ## Persistence
 

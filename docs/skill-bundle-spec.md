@@ -71,7 +71,7 @@ Skills load when Claude determines they're relevant. Each is a directory with a 
 
 Reads the repo to detect what tier the project is at:
 - New project or local-only dependencies (SQLite, JSON files): default to simple, local stack.
-- Railway Postgres/Railway/Cloudflare dependencies already present: keep using them.
+- Railway Postgres, Railway, or in-app Google OAuth already wired up: it's a deployed app, keep using them.
 
 **Backend:** TypeScript + bun (runtime and package manager), oxlint, oxfmt, tsgo. Python + uv for scripts/data work.
 

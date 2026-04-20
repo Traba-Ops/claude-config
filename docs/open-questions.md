@@ -17,7 +17,7 @@
 
 ### 3. Data access layer for Prometheus apps: BigQuery + token store
 
-Standardized BigQuery access for deployed Prometheus apps is a work in progress. Charles Wood is building a token store pattern that uses authenticated user OAuth tokens (from Cloudflare's existing Google SSO) instead of service accounts for BQ queries. Working locally, not yet in production. Goal is to templatize so any Railway app can adopt it.
+Standardized BigQuery access for deployed Prometheus apps is a work in progress. Charles Wood is building a token store pattern that uses authenticated user OAuth tokens (sourced from the app's in-app Google OAuth session) instead of service accounts for BQ queries. Working locally, not yet in production. Goal is to templatize so any Railway app can adopt it. (Originally scoped against Cloudflare Zero Trust SSO — now sources tokens from the app's own Google OAuth flow since Zero Trust was retired.)
 
 Until this is ready, operators use workarounds: nightly data pulls to local files, or direct BQ queries with a service account key. See the [eng runbook](eng-runbook.md#optional-detour-data-access-bigquery) for guidance.
 

@@ -15,12 +15,23 @@ Add Google OAuth login restricted to `@traba.work` accounts. The frontend handle
 
 ### Project structure check
 
-Authentication requires the prescribed monorepo structure from the project setup skill: `apps/web/` (React + Vite frontend), `apps/api/` (Hono backend), and `packages/shared/`. The backend must exist — auth middleware and token verification run server-side in Hono.
+Authentication is designed for the prescribed monorepo structure from the project setup skill: `apps/web/` (React + Vite frontend), `apps/api/` (Hono backend), and `packages/shared/`. For new projects, match that structure — the reference implementation is Hono-specific and the skill's guidance assumes that stack.
 
-Before adding auth, check the project structure. If it doesn't match:
-1. Tell the operator the project needs to be restructured first to support authentication
+Before adding auth to a new project, check the structure. If it doesn't match:
+1. Tell the operator the project should be restructured first to support authentication
 2. Offer to restructure it using the project setup skill
 3. Once restructured, return to this skill to add auth
+
+**Exception — existing apps on a non-prescribed stack.** If a legacy app uses Express + vanilla JS, FastAPI + HTMX, or another stack, do NOT force a restructure just to add auth. The **security model** is framework-agnostic — the token flow, server-side domain check, session JWT, Bearer header, and `/webhooks/*` exemption all apply regardless of stack. Port the reference implementation to whatever framework the app already uses. The requirements that matter:
+
+- Server is the sole authority on who gets access (never trust client-side `hosted_domain`)
+- `hd === 'traba.work'` check happens server-side against Google's userinfo API
+- Session JWT signed with `SESSION_SECRET` (use `jose` on Node, or equivalent in other languages)
+- All `/api/*` routes gated except `/api/auth/*`
+- `/webhooks/*` exempt from JWT auth (they use HMAC signatures instead)
+- Login screen lives in the static shell — SPA loads before auth
+
+An example of the Express + vanilla JS port lives in `Traba-Ops/hunterxhunter` (`auth.js` module) for reference.
 
 ### GCP credentials
 

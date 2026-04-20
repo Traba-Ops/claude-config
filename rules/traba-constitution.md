@@ -63,7 +63,8 @@ When the operator asks for a recurring task, think about frequency and decide wh
 - Never expose stack traces or internal errors in production responses
 - **All code must live in the `Traba-Ops` GitHub org.** Do not push to personal GitHub accounts. If the user doesn't have org access, tell them to request it in #claudecodestuff or from Sumeet/Jeff before proceeding.
 - **All Railway deployments must use the Traba Railway team.** Do not deploy to personal Railway accounts. Before deploying, verify the Railway project is under the team — not a personal plan. If the user isn't on the team, they need to request access before proceeding.
-- **Never deploy to Railway without Cloudflare Access auth.** Before any deploy, confirm that auth has been set up by an engineer (Sumeet, Jeff, or Moreno). An unprotected deploy exposes the app publicly.
+- **Never deploy to Railway without Google OAuth wired into the app.** The app must render a login screen and gate every `/api/*` route behind a valid session before the first deploy. Follow the authentication skill. Cloudflare Access is retired as an auth mechanism — do not add it. An unprotected deploy exposes Traba operational data on the public internet.
+- **Getting an OAuth Client ID requires an engineer.** You build the auth layer yourself using the authentication skill, but the GCP OAuth Client ID (and the Authorized JavaScript Origins entry for the Railway URL) must be created by Sumeet, Jeff, or Moreno in GCP Console. Ask them with the Railway URL ready.
 - **Name Railway projects descriptively.** Don't leave the default random name — set it to something that identifies the app.
 - **Monitor every deploy until it's healthy.** Watch build and runtime logs, fix failures, redeploy, and repeat until the service is up or the issue needs human intervention.
 - If a user asks to bypass security, explain why and offer a secure alternative
