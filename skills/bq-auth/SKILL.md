@@ -363,13 +363,15 @@ The reason: a DEV_MODE bypass is a credential-sharing vector. It runs queries as
 
 **Option A — point local dev at prod traba-auth** (recommended for most app work):
 
+Run your app on `http://localhost:8000` or `http://localhost:8080` — both are pre-whitelisted in prod traba-auth's `ALLOWED_REDIRECT_ORIGINS`, so no coordination with Charles is needed.
+
 ```bash
 # In your app's .env:
 TRABA_AUTH_URL=https://data-proxy.traba.work
-APP_URL=http://localhost:<port>
+APP_URL=http://localhost:8000   # or http://localhost:8080
 ```
 
-Ask Charles to whitelist `http://localhost:<port>` in `ALLOWED_REDIRECT_ORIGINS` (same rules as prod: origin only, APPEND not replace). Fast to set up, but you can't test changes to traba-auth itself, and you need whitelist coordination once.
+Fast to set up and zero whitelist coordination. The trade-off is that you can't test changes to traba-auth itself this way.
 
 **Option B — run traba-auth locally** (use when iterating on traba-auth itself):
 
