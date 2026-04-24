@@ -6,7 +6,7 @@ description: |
   accounts, ADC, or separate OAuth scopes. Use when: (1) an app needs to query
   BigQuery data, (2) user asks about data access or Traba business data,
   (3) user needs to authenticate users for BigQuery queries.
-version: 2.1.0
+version: 2.2.0
 ---
 
 # BigQuery Auth (traba-auth)
@@ -16,6 +16,11 @@ version: 2.1.0
 Traba apps never hold GCP credentials directly. Instead, they authenticate users through **traba-auth**, a centralized proxy that executes BigQuery queries on behalf of authenticated users using their own Google OAuth tokens. This ensures queries run as the user (proper RBAC), credentials stay centralized, and audit logs reflect the real requester.
 
 **Service URL:** `https://data-proxy.traba.work`
+
+> ⚠️ **Compliance TL;DR** — read before writing code:
+> - **Never cache query results across users.** No Redis, no in-memory dict, no shared table. Every request executes fresh under the requesting user's token. A shared cache defeats per-user RBAC. See the full rule in [Compliance](#compliance--data-access-controls).
+> - **Never add a DEV_MODE or service-account bypass to the app.** The app talks to traba-auth in every environment.
+> - **Never log query results.** Log metadata only (user, row count, elapsed time).
 
 ## How It Works
 
@@ -32,13 +37,20 @@ JWTs expire after 60 minutes. BigQuery credentials are refreshed automatically s
 
 traba-auth restricts which apps can use it via two controls that must both be configured before the first deploy. **Send a message in #data on Slack:**
 
-> Hey @charles — deploying a new app that uses traba-auth for BigQuery. Can you:
-> 1. Add `https://<app-url>.railway.app` to `ALLOWED_REDIRECT_ORIGINS` in traba-auth
-> 2. Register `https://<app-url>.railway.app/` as an authorized redirect URI in the GCP OAuth client
+> Hey @Charles — deploying `<app-name>` that uses traba-auth for BigQuery. Can you:
 >
-> App name: `<your-app-name>`
+> 1. **APPEND** `https://<app-url>.railway.app` (origin only — no trailing slash, no path) to the existing comma-separated `ALLOWED_REDIRECT_ORIGINS` env var on traba-auth. Please don't replace the value — and please paste back the full list after the edit so we can confirm existing entries are still present.
+> 2. Register `https://<app-url>.railway.app` as an authorized redirect URI in the GCP OAuth client used by traba-auth.
+>
+> App repo: `<repo URL>`
 
 Do not deploy without this — the OAuth redirect will fail silently and `POST /auth/token` will reject the code.
+
+### Coordination gotchas
+
+- **Origin only, no trailing slash, no path.** `https://myapp.railway.app/` (with trailing slash) will not match the runtime origin check and auth will fail. Clients that strip trailing slashes inline can mask this — don't rely on that.
+- **`ALLOWED_REDIRECT_ORIGINS` is comma-separated and easy to accidentally overwrite.** Always ask Charles to paste the full post-edit list so you can confirm other apps' entries are still there.
+- **A redeploy of traba-auth may be required** for env var changes to take effect. If auth still fails 5 minutes after the edit, ask Charles to redeploy traba-auth.
 
 ## API
 
@@ -50,7 +62,9 @@ Exchanges a one-time code for a JWT.
 
 **Body:** `{"code": "<one-time-code>"}`
 
-**Response:** `{"access_token": "<jwt>", "token_type": "bearer"}`
+**Response:** `{"token": "<jwt>", "email": "user@traba.work", "name": "First Last"}`
+
+Read the JWT from `body.token` (not `access_token`). The response also carries `email` and `name`, so a fresh token exchange doesn't need a follow-up `/auth/me` call to identify the user — only use `/auth/me` to validate tokens received later from a client.
 
 Exchange the code immediately on callback — it expires in 60 seconds.
 
@@ -120,7 +134,7 @@ def require_auth():
             if resp.status_code != 200:
                 st.error("Login failed — please try again.")
                 st.stop()
-            st.session_state.token = resp.json()["access_token"]
+            st.session_state.token = resp.json()["token"]
             st.rerun()
         else:
             st.link_button(
@@ -171,7 +185,11 @@ rows = run_query("SELECT shift_id, status FROM `traba-data.marts.shifts` WHERE d
 
 ## TypeScript Integration
 
+This example uses Hono. Cookie helpers come from `hono/cookie` — make sure to import them.
+
 ```typescript
+import { setCookie, getCookie, deleteCookie } from "hono/cookie";
+
 const TRABA_AUTH_URL = process.env.TRABA_AUTH_URL ?? "http://localhost:8000";
 const APP_NAME = "your-app-name";
 
@@ -193,11 +211,13 @@ app.get("/auth/callback", async (c) => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
+    signal: AbortSignal.timeout(10_000),
   });
   if (!resp.ok) return c.text("Login failed — please try again.", 401);
 
-  const { access_token } = await resp.json() as { access_token: string };
-  setCookie(c, "token", access_token, { httpOnly: true, sameSite: "Lax" });
+  // Field name is `token` — NOT `access_token`. See /auth/token API docs.
+  const { token } = await resp.json() as { token: string; email: string; name: string };
+  setCookie(c, "token", token, { httpOnly: true, sameSite: "Lax" });
   return c.redirect("/");
 });
 
@@ -207,13 +227,14 @@ app.get("/auth/logout", async (c) => {
   if (token) {
     await fetch(`${TRABA_AUTH_URL}/auth/logout`, {
       headers: { "Authorization": `Bearer ${token}` },
+      signal: AbortSignal.timeout(5_000),
     });
   }
   deleteCookie(c, "token");
   return c.redirect("/");
 });
 
-// Query helper
+// Query helper — rules say to use a 30s timeout on /query requests
 async function queryBQ(sql: string, params: string[], token: string): Promise<Record<string, unknown>[]> {
   const resp = await fetch(`${TRABA_AUTH_URL}/query`, {
     method: "POST",
@@ -223,7 +244,10 @@ async function queryBQ(sql: string, params: string[], token: string): Promise<Re
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ sql, params }),
+    signal: AbortSignal.timeout(30_000),
   });
+  // 401 mid-session = JWT expired or revoked. Callers should clear the cookie
+  // and redirect to /auth/login — don't just show an error.
   if (resp.status === 401) throw new Error("SESSION_EXPIRED");
   if (resp.status === 429) throw new Error("RATE_LIMITED");
   if (!resp.ok) throw new Error(`BQ query failed: ${resp.status}`);
@@ -335,7 +359,19 @@ Do not add a `DEV_MODE` flag, a service account bypass, ADC fallback, or any cod
 
 The reason: a DEV_MODE bypass is a credential-sharing vector. It runs queries as a service account with broader permissions than the user has, silently defeating per-user RBAC. It also means the code path you test locally is not the code path that runs in production.
 
-**For local development**, run traba-auth locally instead:
+**For local development**, you have two options. In both cases, your app's code is identical to prod — `DEV_MODE` lives only in traba-auth, never in the app.
+
+**Option A — point local dev at prod traba-auth** (recommended for most app work):
+
+```bash
+# In your app's .env:
+TRABA_AUTH_URL=https://data-proxy.traba.work
+APP_URL=http://localhost:<port>
+```
+
+Ask Charles to whitelist `http://localhost:<port>` in `ALLOWED_REDIRECT_ORIGINS` (same rules as prod: origin only, APPEND not replace). Fast to set up, but you can't test changes to traba-auth itself, and you need whitelist coordination once.
+
+**Option B — run traba-auth locally** (use when iterating on traba-auth itself):
 
 ```bash
 # In ~/Documents/repo/traba-auth:
@@ -344,10 +380,10 @@ The reason: a DEV_MODE bypass is a credential-sharing vector. It runs queries as
 # 3. Run: uvicorn app.main:app --reload
 
 # In your app's .env:
-TRABA_AUTH_URL=http://localhost:8000  # points to local traba-auth
+TRABA_AUTH_URL=http://localhost:8000
 ```
 
-Your app's code is identical in dev and prod. `DEV_MODE` lives only in traba-auth, never in the app.
+More setup, zero whitelist coordination.
 
 If you encounter existing code with a DEV_MODE bypass, remove it. There is no acceptable reason for an app to have one.
 
