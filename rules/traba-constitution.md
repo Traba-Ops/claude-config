@@ -45,6 +45,17 @@ Before writing code on a new project, make sure you understand what you're build
 
 Keep it conversational — group 2-3 related questions, don't interrogate. If the operator has already described what they want clearly, skip the questions and start building. The goal is to avoid building the wrong thing, not to produce a formal spec.
 
+## Project Setup and Documentation
+
+When starting a new project, invoke the project-setup skill before writing code. Treat the prescribed stack as the default — TypeScript, Hono backend, React/Vite frontend, monorepo with `apps/web` + `apps/api` + `apps/shared`, bun + oxlint + oxfmt + tsgo. Don't reach for alternatives like Express, Next.js, npm/pnpm, or jest unless the operator has a specific reason.
+
+Maintain three living documents as you work — see the project documentation rule (`traba-spec`):
+- **README.md** — short, for users of the app
+- **SPEC.md** — business rules, data model, workflows, integrations, known limitations
+- **decisions/YYYY-MM-DD-topic.md** — append-only record of meaningful technical choices
+
+Update them in-line when business rules change, workflows are added, or technical decisions are made. Don't batch documentation at session end. Commit decision records automatically when you write them.
+
 ## Recurring Tasks and Token Cost
 
 There are two ways to run something on a schedule: re-run an LLM prompt each time, or write actual code (a script, cron job, etc.) that runs without calling the LLM.
@@ -63,7 +74,7 @@ When the operator asks for a recurring task, think about frequency and decide wh
 - Never expose stack traces or internal errors in production responses
 - **All code must live in the `Traba-Ops` GitHub org.** Do not push to personal GitHub accounts. If the user doesn't have org access, tell them to request it in #claudecodestuff or from Sumeet/Jeff before proceeding.
 - **All Railway deployments must use the Traba Railway team.** Do not deploy to personal Railway accounts. Before deploying, verify the Railway project is under the team — not a personal plan. If the user isn't on the team, they need to request access before proceeding.
-- **Never deploy to Railway without Cloudflare Access auth.** Before any deploy, confirm that auth has been set up by an engineer (Sumeet, Jeff, or Moreno). An unprotected deploy exposes the app publicly.
+- **Never deploy to Railway without auth in place.** The standard is in-app Google OAuth (see the authentication skill). Before any deploy, confirm the OAuth Client ID is set, `@traba.work` domain restriction is enforced, and `SESSION_SECRET` is sealed. An unprotected deploy exposes the app publicly.
 - **Name Railway projects descriptively.** Don't leave the default random name — set it to something that identifies the app.
 - **Monitor every deploy until it's healthy.** Watch build and runtime logs, fix failures, redeploy, and repeat until the service is up or the issue needs human intervention.
 - If a user asks to bypass security, explain why and offer a secure alternative

@@ -3,8 +3,8 @@ name: deployment
 description: |
   Deployment guidance for sharing Traba apps. Use when: (1) user wants to deploy,
   share, or make their app accessible to others, (2) user asks about hosting or URLs.
-  Covers: Railway, Cloudflare Access auth, Railway env vars for secrets, Railway Postgres.
-version: 1.0.0
+  Covers: Railway, in-app Google OAuth, Railway env vars for secrets, Railway Postgres.
+version: 1.1.0
 ---
 
 # Deploying a Shared App
@@ -86,14 +86,12 @@ If the operator is watching, give them status updates as you go. If you hit some
 
 **Do NOT deploy to Railway until auth is in place.** An unprotected deploy means the app is publicly accessible on the internet with no auth.
 
-**Preferred: In-app Google OAuth.** The operator builds auth into the app using the authentication skill. The app handles login via `@react-oauth/google` on the frontend and verifies tokens server-side. An engineer creates the GCP credentials and verifies the implementation. Key requirements before deploying:
+The standard is **in-app Google OAuth** — see the authentication skill for the reference implementation. The app handles login via `@react-oauth/google` on the frontend and verifies tokens server-side. An engineer creates the GCP credentials and verifies the implementation. Key requirements before deploying:
 
 1. Engineer creates an OAuth Client ID in GCP Console and provides it to the operator
 2. Set `VITE_GOOGLE_CLIENT_ID` as a Railway env var **before the first deploy** (it's build-time)
 3. Set `SESSION_SECRET` as a Railway env var and **seal it**
 4. Verify the app rejects non-`@traba.work` accounts
-
-**Fallback: Cloudflare Zero Trust.** If in-app auth isn't feasible, an engineer can set up Cloudflare Access as a reverse proxy. No code changes needed, but Cloudflare has a 50-seat limit across all Traba apps — not scalable long-term. Reach out to Sumeet, Jeff, or Moreno to set this up.
 
 ## Persistence
 

@@ -4,7 +4,7 @@ description: |
   Stack, toolchain, and scaffolding for Traba projects. Use when:
   (1) starting a new project, (2) choosing between technologies,
   (3) initializing a repo or adding dependencies.
-version: 2.0.0
+version: 2.1.0
 ---
 
 # Project Setup
@@ -12,7 +12,7 @@ version: 2.0.0
 ## Tier Detection
 
 Read the repo before choosing a stack. Use what's already there:
-- If the project has Railway Postgres, Railway, or Cloudflare dependencies, it's a deployed app. Keep using them.
+- If the project has Railway Postgres or Railway dependencies, it's a deployed app. Keep using them.
 - If the project has SQLite, JSON files, or no persistence, it's a local prototype. Keep it simple.
 - If the project is brand new, default to local: SQLite or JSON files, no external services.
 
@@ -122,4 +122,8 @@ When starting a new project:
 10. Add `"typecheck": "tsgo --noEmit"` to each app's `package.json` scripts
 11. Set up the backend to serve the frontend in production (see deployment skill for details). The backend should serve static files from `../web/dist/` with a SPA catch-all fallback after all API routes.
 12. Add a `railway.json` at the repo root (see deployment skill for the template). This prevents Nixpacks from guessing wrong in the monorepo.
-13. Run `bun install` from root to link workspaces
+13. Create the project documentation skeleton (see the `traba-spec` rule for what goes in each):
+    - `README.md` — what this does, who uses it, how to run it, how to use it
+    - `SPEC.md` — business rules, data model, key workflows, integrations, known limitations
+    - `decisions/` directory for append-only decision records
+14. Run `bun install` from root to link workspaces
