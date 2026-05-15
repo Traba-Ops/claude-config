@@ -1,15 +1,61 @@
 ---
 name: deployment
 description: |
-  Deployment guidance for sharing Traba apps. Use when: (1) user wants to deploy,
-  share, or make their app accessible to others, (2) user asks about hosting or URLs.
-  Covers: Railway, in-app Google OAuth, Railway env vars for secrets, Railway Postgres.
-version: 1.1.0
+  Deployment and sharing guidance for Traba apps and one-pagers. Use when:
+  (1) user wants to deploy, share, or make their app accessible to others,
+  (2) user asks about hosting or URLs, (3) user has a standalone HTML file
+  (proposal, dashboard mockup, report) they want to share.
+  Covers: Google Drive for static HTML, Railway for full apps, in-app Google
+  OAuth, Railway env vars for secrets, Railway Postgres.
+version: 1.2.0
+---
+
+# Sharing an App or Page
+
+Before deploying anything, figure out which case applies. Most ops shares fall into one of two buckets, and they have very different answers.
+
+| What you have | How to share |
+|---------------|--------------|
+| A single static HTML file (or a small folder of static files) — proposal, report, dashboard mockup, GTM doc, anything with no backend logic | **Google Drive** — see below |
+| A real app with API logic, auth, persistence, or anything dynamic | **Railway** — see "Deploying a Shared App" below |
+
+If you're unsure, ask: "does this page need to talk to a database or call an API on every load?" If no, it's a static file — use Drive.
+
+---
+
+## Sharing Standalone HTML Pages — Google Drive
+
+**Do not deploy standalone HTML pages to Railway, Vercel, Netlify, GitHub Pages, or any personal hosting account.** Static HTML pages — GTM proposals, internal reports, dashboard mockups, one-off visualizations — should be shared via **Google Drive**, not hosted on the public internet.
+
+**Why Drive instead of hosting:**
+
+- **Access control comes for free.** Drive uses Traba's Google Workspace permissions — restrict to `@traba.work`, named individuals, or specific groups. Revocable, auditable, and lives inside the perimeter we already manage.
+- **No public URLs leaking confidential info.** Internal proposals and reports routinely contain customer names, pricing, headcount, or strategy. A public Vercel URL has no access control by default — anyone who guesses or stumbles on the URL can read it. Drive links are gated.
+- **No personal accounts hosting Traba content.** Files on a personal Vercel/Netlify account leave with the person when they leave. Drive files stay in the Traba Workspace.
+- **No deploy step.** Drop the file in Drive, share it, done. No build, no env vars, no DNS.
+
+**How to share a static HTML file via Drive:**
+
+1. Upload the `.html` file to Google Drive (any folder the user has access to).
+2. Set sharing to one of:
+   - "Anyone at Traba with the link" (default for internal proposals)
+   - Specific people or groups (for anything confidential)
+3. Share the Drive link in Slack or wherever the recipients live.
+4. Recipients click the link in Drive → **Open with → Browser**, or **Download** and open the file in Chrome. Either works; the file runs locally in their browser.
+
+**What "static HTML" means here:** A file that runs entirely client-side. No server-side rendering, no API calls to a backend you control, no database writes. Inline `<script>` tags, fetches to public CDNs, and embedded data are all fine. If the page calls a Traba API or needs auth, it's not a static page — see Railway below.
+
+**One-pagers with embedded data:** If the HTML embeds data (a chart, a table, a snapshot), make sure the data itself is okay to be inside a Drive-shared file. Drive controls who sees the file; it doesn't redact what's inside.
+
+**Multi-file static sites:** If the share is a folder of HTML/CSS/JS (e.g., a report with assets), zip the folder and upload the zip, or upload the whole folder to Drive and share the folder link. Recipients download and open `index.html` locally.
+
+**When this rule does not apply:** If the page is part of a real app (has a backend, uses auth, persists data), it's not a static one-pager — deploy it to Railway with the full pattern below.
+
 ---
 
 # Deploying a Shared App
 
-When the user wants to share their app with others, the app needs:
+When the user wants to share a full app with others, the app needs:
 1. A hosted backend and/or frontend
 2. Authentication (so only Traba employees can access it)
 3. Shared persistence (if the app stores data)

@@ -19,7 +19,8 @@ The Prometheus stack is intentionally opinionated. Claude skills enforce these c
 | Monorepo | bun workspaces | pnpm + Turborepo | One tool. Operator tools are small — Turborepo/Nx add complexity for no benefit at this scale. |
 | Database | Railway Postgres | Supabase, Neon | Railway databases are regular services billed by actual compute — a small Postgres costs ~$1/mo. No per-project VM surcharge. Prisma handles all data access, so Supabase's REST API layer adds cost without benefit. |
 | ORM | Prisma | Drizzle | Schema-first, type-safe client generation. Works with SQLite (local) and Postgres (Railway). Migration tooling built in. |
-| Deploy | Railway (backend serves frontend) | Render | Single service: backend builds + serves frontend as static files. Avoids Nixpacks monorepo confusion. Use `railway.json` for explicit build/start. Even frontend-only apps use Railway with a minimal static server. |
+| Static HTML one-pagers | Google Drive | Vercel, Netlify, GitHub Pages | Standalone HTML files (proposals, reports, dashboard mockups) get shared via Drive, not hosted. Drive provides Workspace-gated access control for free, keeps confidential content off public URLs, and avoids ops hosting Traba content on personal accounts. |
+| Deploy (full apps) | Railway (backend serves frontend) | Render | Single service: backend builds + serves frontend as static files. Avoids Nixpacks monorepo confusion. Use `railway.json` for explicit build/start. Even frontend-only apps use Railway with a minimal static server. |
 | Auth (shared apps) | In-app Google OAuth | Cloudflare Zero Trust | Unlimited users, no platform lock-in, full control over sessions and routes. Zero Trust hit the 50-seat free tier cap. |
 | Secrets | Railway environment variables | Infisical, Doppler | Simplest option — no extra tooling. Railway dashboard is accessible to operators. Secrets stay in the deployment platform where they're used. |
 | Version control | GitHub | — | Existing Traba infrastructure. |
@@ -155,6 +156,30 @@ Railway provides the infrastructure, but you are responsible for backups, perfor
 When a project needs structured database access beyond simple queries, use Prisma. It generates a fully type-safe client from the schema file — queries get autocomplete and compile-time type checking with zero manual typing. Works across both tiers: SQLite for local prototypes, Postgres on Railway for deployed apps. Schema is the source of truth for both the database and TypeScript types.
 
 **Runner-up — Drizzle:** Lighter weight, closer to raw SQL. Worth considering if bundle size or query performance becomes a bottleneck. Prisma's schema-first workflow is more approachable for AI-generated code.
+
+---
+
+## Static HTML One-Pagers: Google Drive
+
+**The case:** Ops increasingly produces standalone HTML pages — GTM proposals, internal reports, dashboard mockups, one-off visualizations. These have no backend, no auth, no persistence — just a single `.html` file that runs entirely in the browser.
+
+**The default has been to host them somewhere** (Vercel, Netlify, GitHub Pages, occasionally a personal account). That created two problems Sumeet flagged in #claudecodestuff:
+
+1. **Personal hosting accounts.** Operators were hosting on personal Vercel accounts because there was no sanctioned alternative. That content leaves with the person and is invisible to Traba.
+2. **No visibility or access control.** A public Vercel URL has no built-in auth. Confidential-ish material — pricing, customer names, headcount, strategy — was sitting at guessable public URLs.
+
+**The fix: don't host one-pagers — share them via Google Drive.**
+
+- **Access control is free.** Drive enforces Google Workspace permissions. Restrict to `@traba.work`, named individuals, or groups. Revocable, auditable, and inside the perimeter we already manage.
+- **No public URLs.** Drive links are gated; there's no path from "guessed URL" to "read the file."
+- **No personal-account drift.** Files live in the Traba Workspace, not on someone's individual Vercel/Netlify.
+- **Zero deploy step.** Upload, share, done. No build, no env vars, no DNS.
+
+**How it works:** Upload the `.html` to Drive → set sharing scope → share the link. Recipients click **Open with → Browser**, or **Download** the file and open it in Chrome. Either path runs the file locally.
+
+**When this does not apply:** If the page calls a Traba API, needs auth, or persists data, it's not a static one-pager — it's a real app and belongs on Railway. See the deployment skill for the routing rule.
+
+**Why not Vercel team plan:** Vercel team would solve the personal-account problem but not the access-control problem — Vercel deployments are public by default, and putting auth in front of every one-pager (Cloudflare Access, Vercel Password Protection) reintroduces the deploy step we're trying to avoid. Drive is the simpler answer for the static case; Railway with in-app OAuth is the answer when the app actually needs to do something.
 
 ---
 
