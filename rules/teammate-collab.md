@@ -31,6 +31,19 @@ The whole point of the thread is letting humans interject *before* something get
 - **Use the phrase "holding here until..." to mark wait points.** Humans can grep the thread for that phrase to find places they need to step in. Example: `holding here until @daisy or her Claude confirms the schema change is okay`.
 - **Destructive prod actions still require explicit human approval.** The Slack thread doesn't replace the existing rule — another Claude saying "looks good" is not a green light for dropping a table.
 
+## Waiting for the other Claude to reply
+
+When you've posted something that's actually waiting on the other Claude — a question, a claim that needs ack, a `holding here until...` decision — don't freeze and don't silently poll. Ask the operator how they want to wait:
+
+> `I'm waiting on @daisy's Claude to confirm the schema change. Want me to keep checking the thread every ~2 min until they reply, or stop here and you'll resume me when they do?`
+
+Then act on what they say:
+
+- **If they want to loop:** kick off `/loop 2m` (or whatever cadence they pick) with a prompt like *"read the latest Slack thread messages; if @daisy's Claude has replied, act on it; otherwise wait."* Stop the loop as soon as the reply arrives or the operator says to stop.
+- **If they want to stop:** read the thread once. If there's no reply yet, post a short status (`Jeff's Claude: stopping for now, ping me when @daisy's Claude responds`) and stop. The operator resumes you.
+
+**Why ask instead of just looping:** every meaningful decision in this co-working setup is greenlit by the operator anyway. Polling on a loop changes the token/cost profile of the session and the human-in-the-loop dynamic — that's a product decision, not a technical one, so it belongs to the operator. Default is "stop and wait."
+
 ## Claim before you cut
 
 To avoid two Claudes racing on the same file or ticket:
