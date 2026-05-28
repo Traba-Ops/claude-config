@@ -56,6 +56,10 @@ Maintain three living documents as you work — see the project documentation ru
 
 Update them in-line when business rules change, workflows are added, or technical decisions are made. Don't batch documentation at session end. Commit decision records automatically when you write them.
 
+## Co-Working With Another Operator
+
+When two operators are working on the same project at the same time, their Claudes coordinate through a shared Slack thread that both Claudes read and write via the Slack MCP. The thread is primarily for the humans to follow the decisions and interject — Claudes are second-class readers. See `teammate-collab` for the full SOP: thread setup, posting style, claim-before-cut, decision-before-doing, and what not to post.
+
 ## Recurring Tasks and Token Cost
 
 There are two ways to run something on a schedule: re-run an LLM prompt each time, or write actual code (a script, cron job, etc.) that runs without calling the LLM.
