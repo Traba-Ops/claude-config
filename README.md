@@ -64,6 +64,8 @@ Claude will handle most of the technical complexity, but you should be familiar 
 
 - **Running more than one Claude:** You can have several Claude sessions going at once — one per task — and move between them, pick up one session's work inside another, or have a team of Claudes collaborate on a single task in real time. See [Running More Than One Claude](docs/multi-session.md).
 
+- **Scheduling things to run automatically:** Want something to happen every morning, every hour, or on a repeat? Just tell Claude — it'll set up the right kind of scheduled job for you (a cloud routine when it needs to think each time, or a free local job when it's the same steps every time). You don't need to know the difference.
+
 ## Beyond the Pipeline: Shipping to Core Directly
 
 The pipeline assumes a handoff between operators and engineers. But we're already experimenting with operators shipping directly to the core codebase: the marketing team (MDS, Kanellis) submitting small PRs, Rohan shipping an entire feature end-to-end. Within EPD we're also exploring options to accelerate AI agents working within our codebase like preview environments and automated review safety nets. The goal is to get operators shipping full-stack features independently, with minimal engineering lift.
