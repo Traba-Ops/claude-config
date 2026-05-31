@@ -32,6 +32,9 @@ against the session's goal and last status, not just its auto-generated name.
 node ~/.claude/skills/continue-from/continue-from.mjs "the payroll flaky test fix"
 ```
 
+(If `node` isn't installed, run it with `bun` instead — the script uses only
+standard APIs both support: `bun ~/.claude/skills/continue-from/continue-from.mjs "..."`.)
+
 - **A hint that matches one session** → the helper prints that session's goal,
   where it left off, and its recent activity.
 - **No hint** (`node ~/.claude/skills/continue-from/continue-from.mjs`) → it lists

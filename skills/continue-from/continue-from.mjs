@@ -60,13 +60,27 @@ function fmtAge(ts) {
 }
 
 // 1. Roster -----------------------------------------------------------------
+// Prefer `claude` on PATH; fall back to the running CLI's own path so this works
+// even when `claude` isn't on PATH (it's always set inside a Claude Code session).
+function runAgentsJson() {
+  const bins = ["claude", process.env.CLAUDE_CODE_EXECPATH].filter(Boolean);
+  let lastErr;
+  for (const bin of bins) {
+    try {
+      return execFileSync(bin, ["agents", "--json"], {
+        encoding: "utf8",
+        maxBuffer: 32 * 1024 * 1024,
+      });
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("`claude` CLI not found");
+}
+
 let sessions;
 try {
-  const raw = execFileSync("claude", ["agents", "--json"], {
-    encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
-  });
-  sessions = JSON.parse(raw);
+  sessions = JSON.parse(runAgentsJson());
 } catch (e) {
   die(`Could not run \`claude agents --json\`: ${e.message}`);
 }
@@ -74,14 +88,30 @@ if (!Array.isArray(sessions) || sessions.length === 0) {
   die("No background sessions found. Dispatch one with `claude --bg` or from `claude agents`.");
 }
 
-const selfId = process.env.CLAUDE_SESSION_ID || "";
+// The id of the session this script runs inside (so we don't offer it as a target).
+const selfId = process.env.CLAUDE_CODE_SESSION_ID || process.env.CLAUDE_SESSION_ID || "";
 
-function readState(s) {
-  const sp = join(CONFIG_DIR, "jobs", shortId(s), "state.json");
-  if (existsSync(sp)) {
+const JOBS_DIR = join(CONFIG_DIR, "jobs");
+
+function tryReadJson(p) {
+  if (existsSync(p)) {
     try {
-      return JSON.parse(readFileSync(sp, "utf8"));
+      return JSON.parse(readFileSync(p, "utf8"));
     } catch { /* ignore */ }
+  }
+  return null;
+}
+
+// Job dir is normally <sessionId[0:8]>; fall back to scanning jobs/* for a
+// state.json whose sessionId matches, in case that naming ever differs.
+function readState(s) {
+  const direct = tryReadJson(join(JOBS_DIR, shortId(s), "state.json"));
+  if (direct) return direct;
+  if (existsSync(JOBS_DIR)) {
+    for (const d of readdirSync(JOBS_DIR)) {
+      const st = tryReadJson(join(JOBS_DIR, d, "state.json"));
+      if (st && st.sessionId === s.sessionId) return st;
+    }
   }
   return {};
 }
