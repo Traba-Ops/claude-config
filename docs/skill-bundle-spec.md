@@ -17,6 +17,8 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
+| **Continue from** | Pick up another background session's work in the current one | `~/.claude/skills/continue-from/` (loaded when relevant) |
+| **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
@@ -106,6 +108,18 @@ Single-file skill (~620 lines): critical rules at top, then all tokens, componen
 **Trigger:** User needs to query BigQuery data, access Traba business data, or authenticate users for data access.
 
 Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
+
+### Continue From
+
+**Trigger:** User wants to pick up, resume, or take over what another background Claude session was working on — e.g. "continue from the session where I was doing X."
+
+Bundles a small Node helper (`continue-from.mjs`) that reads local Claude Code state — `claude agents --json` for the session list, each session's `state.json` for its goal and last status, and the transcript for recent activity — and prints a clean snapshot so the current session can continue the other one's work. Matching scores a free-text hint against each session's goal/status, not just its name. One-way "read and continue"; it does not message or modify the other session. See [Running More Than One Claude](multi-session.md) for the broader multi-session story (background sessions, this skill, and agent teams).
+
+### Scheduling
+
+**Trigger:** User wants something to run on a schedule or repeatedly — "every morning", "each hour", "remind me daily", any recurring job.
+
+Gives Claude the decision rule for *which* scheduling mechanism to use, then the how-to for setting it up. The rule: if each run needs Claude's judgment → a **Claude routine** (cloud, via `/schedule`, draws down subscription usage, hourly minimum); if it's deterministic code → a **macOS LaunchAgent** (local, free, down to 1-minute intervals). Frequency/cost and locality break ties toward LaunchAgent. Bundles `launchagent.template.plist` and the `launchctl` load/remove commands. (LaunchDaemons are intentionally omitted — they need root and aren't an operator self-serve tool.)
 
 ---
 

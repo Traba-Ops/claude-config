@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent template for a recurring local task.
+  Replace TASK_NAME and YOUR_USERNAME everywhere, then save as
+    ~/Library/LaunchAgents/work.traba.TASK_NAME.plist
+  and load it:
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/work.traba.TASK_NAME.plist
+  Use ABSOLUTE paths throughout — launchd does not load the user's shell
+  PATH or aliases.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>work.traba.TASK_NAME</string>
+
+  <!-- What to run. Point at a script with an absolute path. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>/Users/YOUR_USERNAME/path/to/your-script.sh</string>
+  </array>
+
+  <!-- WHEN to run. Use ONE of the two blocks below. -->
+
+  <!-- (A) Specific clock times, like cron. This example = every day at 08:00. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <!-- (B) Fixed interval instead: every N seconds. Delete the
+       StartCalendarInterval block above and uncomment this to run every
+       15 minutes:
+  <key>StartInterval</key>
+  <integer>900</integer>
+  -->
+
+  <!-- Logs — essential for debugging a job that runs unattended. -->
+  <key>StandardOutPath</key>
+  <string>/Users/YOUR_USERNAME/Library/Logs/work.traba.TASK_NAME.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOUR_USERNAME/Library/Logs/work.traba.TASK_NAME.log</string>
+</dict>
+</plist>
