@@ -62,19 +62,35 @@ HR/comp artifacts regardless of teleport.)
 
 ## `teleport up` — run on the laptop, before closing it
 
+> **The skill prepares; the human launches.** A skill (acting through the Bash tool) **cannot** fire
+> `claude --remote` itself: a non-TTY subprocess errors with `--print`, a pty hits the workspace-trust
+> prompt, and `--dangerously-skip-permissions` is correctly blocked as an unsafe-agent pattern. This is
+> a deliberate guardrail against agents silently spawning autonomous cloud agents — do not try to work
+> around it. So `teleport up` does steps 1–4 (all the plumbing) and then **hands the user one line to
+> run in their terminal** (step 5). That's as "hands-off" as it safely gets.
+
 1. **Sensitivity triage** (above). Hard-stop confidential.
 2. **Note the tools.** List MCPs/data the task needs. The cloud has **none of your local MCP servers**
-   (Slack, Coda, Linear, traba-db, BigQuery/bq-auth, etc. are interactively authed). The cloud will
-   work best-effort without them — so the task string must tell it to **do what it can, skip what it
-   can't, and note what it skipped** for you to finish locally on the way down.
-3. **Get the work onto GitHub.** `--remote` clones from GitHub, not your disk: `git push` the current
-   branch first. If you have uncommitted work you want up and pushing isn't appropriate, rely on the
-   bundle fallback (or `CCR_FORCE_BUNDLE=1`).
-4. **Launch:** `claude --remote "<task>"`, where `<task>` packs everything the fresh cloud session
-   needs — the goal, the context it can't see (decisions, constraints), and the instruction to work
-   best-effort around missing MCPs and record skips. Keep it tight and self-contained.
-5. **Confirm to the user:** the cloud session is running; monitor with `/tasks`, claude.ai/code, or the
-   mobile app; the laptop can now close. (It's genuinely running in the cloud — say that, not "staged.")
+   (Slack, Coda, Linear, traba-db, BigQuery/bq-auth, etc. are interactively authed). The brief must tell
+   the cloud to **do what it can, skip what it can't, and note what it skipped** for you to finish
+   locally on the way down.
+3. **Provision the carrier repo automatically (no manual repo management).**
+   - In a git repo already? Use it: `git push` the current branch (the cloud VM clones from GitHub, not
+     your disk). Uncommitted work rides via the bundle fallback (`CCR_FORCE_BUNDLE=1` to force).
+   - Not in a repo (ad-hoc / non-code session — e.g. cwd isn't git)? **Auto-create a scratch repo** in
+     Traba-Ops (`gh repo create Traba-Ops/<name> --private`), seed `main`, snapshot any working files
+     into it, push. The user never hand-manages a repo — the skill does it. (Reusing one dedicated
+     scratch repo across runs is nice: trust it once and the `--remote` launch stops prompting.)
+4. **Compose the brief** — a tight, self-contained task string packing the goal, the context the fresh
+   cloud session can't see (what you did, decisions, constraints), and the best-effort/skip-and-note
+   instruction. This is the baton going up (the conversation does NOT travel up).
+5. **Hand the user the launch line** (do not try to run it yourself):
+   ```
+   claude --remote "<brief from step 4>"
+   ```
+   Tell them: run it in a terminal from the repo dir, accept the one-time trust prompt, and it creates a
+   cloud session that runs on Anthropic infra (laptop can then close). Monitor via `/tasks`,
+   claude.ai/code, or the mobile app.
 
 ## `teleport down` — run on the laptop, when back
 
