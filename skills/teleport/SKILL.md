@@ -36,10 +36,21 @@ a handoff — it adds judgment (a sensitivity gate + missing-tool awareness) aro
 - **Not this:** `--remote-control` is unrelated — it exposes a *local* session for monitoring from the
   web and dies when the laptop sleeps. Don't confuse it with `--remote`.
 
-**Prerequisites:** Claude Code on the web enabled for the account/org (Pro/Max/Team, or Enterprise
-premium seats — Team/Ent admins toggle it; if disabled, `--teleport`/`--remote` are inert). Signed in
-via `/login` with claude.ai. First `--remote` in a never-trusted folder shows a one-time
-"trust this folder?" prompt — just accept it.
+**Prerequisites (verify these or the round trip silently half-fails):**
+- **Cloud enabled** for the account/org (Pro/Max/Team, or Enterprise premium seats; Team/Ent admins
+  toggle it). If disabled, `--remote`/`--teleport` are inert.
+- **Signed in** via `/login` with claude.ai (not API key).
+- **GitHub connected for cloud sessions — the one people miss.** Run **`/web-setup`** once (syncs your
+  local `gh` token to your Claude account), OR authorize the Claude GitHub App via web onboarding.
+  **Without this, `claude --remote` falls back to *bundling* your repo (uploads it directly) and a
+  bundled session CANNOT push back — so no branch, no PR, and `--teleport` has nothing to fetch.** A
+  cloud session that reports "no origin remote" means `/web-setup` wasn't done. (ZDR orgs can't use
+  `/web-setup` or cloud sessions at all.)
+- First `--remote` in a never-trusted folder shows a one-time "trust this folder?" prompt — accept it.
+
+**Cloud-side gotchas to put in the brief:** if the cloud hits a commit-signing error
+(`signing server returned 400 / missing source`), tell it to commit with `--no-gpg-sign`. (This often
+travels with the bundle problem above — fixing `/web-setup` so it clones from GitHub usually clears it.)
 
 ## Sensitivity triage — DO THIS FIRST on `teleport up`
 
