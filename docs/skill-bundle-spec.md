@@ -12,6 +12,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 |------|-------------|---------------|
 | **Constitution** | Role, principles, requirements gathering, security, development hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
 | **Project documentation** | README + SPEC.md, decision records | `~/.claude/rules/traba-spec.md` (always active) |
+| **Workflows** | When to use dynamic workflows, dynamic vs saved, cost discipline | `~/.claude/rules/workflows.md` (always active) |
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
 | **Deployment** | Railway, Google OAuth, Railway Postgres | `~/.claude/skills/deployment/` (loaded when relevant) |
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
@@ -60,6 +61,15 @@ Maintains two living documents per project, building toward Tier 1 promotion:
 - **Decision records** (`decisions/YYYY-MM-DD-topic.md`): what the options were, what was chosen and why, what was rejected.
 
 Both documents update continuously as the project evolves — not at session end, not periodically, but when things change. Operator corrections to business logic go directly into the spec.
+
+### Workflows (`workflows.md`)
+
+When and how to use Claude Code's **dynamic workflows** (the script-orchestrates-many-subagents feature). Keeps the default posture conservative so operators don't burn tokens by accident.
+
+- **Not the default:** normal conversation or a single subagent handles almost everything. Only start a workflow when the task truly needs many coordinated agents *and* the operator opted in (said "use a workflow"/"ultracode", invoked a saved workflow, or is in an `ultracode` session).
+- **Dynamic vs saved ("static"):** one-off scripts Claude writes for a single task vs scripts saved as reusable `/commands` (parameterized via `args`) for processes you repeat. Save once you've run the same one-off more than a couple of times.
+- **Cost discipline:** pilot on a slice first, mind the per-agent model, respect that runs count toward plan usage.
+- Inherits the constitution's confirmation rules for workflows that mutate prod, post externally, or are hard to reverse.
 
 ---
 
