@@ -64,7 +64,7 @@ Both documents update continuously as the project evolves — not at session end
 
 ### Workflows (`workflows.md`)
 
-When and how to use Claude Code's **dynamic workflows** (the script-orchestrates-many-subagents feature). Keeps the default posture conservative so operators don't burn tokens by accident.
+When and how to use Claude Code's **dynamic workflows** (the script-orchestrates-many-subagents feature; [official docs](https://code.claude.com/docs/en/workflows)). Keeps the default posture conservative so operators don't burn tokens by accident.
 
 - **Not the default:** normal conversation or a single subagent handles almost everything. Only start a workflow when the task truly needs many coordinated agents *and* the operator opted in (said "use a workflow"/"ultracode", invoked a saved workflow, or is in an `ultracode` session).
 - **Dynamic vs saved ("static"):** one-off scripts Claude writes for a single task vs scripts saved as reusable `/commands` (parameterized via `args`) for processes you repeat. Save once you've run the same one-off more than a couple of times.

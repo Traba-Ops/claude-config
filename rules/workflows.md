@@ -4,6 +4,8 @@ Claude Code can run **dynamic workflows**: instead of working a task turn by tur
 
 This is a powerful but **token-heavy, opt-in** tool. A single run can use far more tokens than doing the same task in conversation. The guidance below is the default policy for working with Traba operators — it sits under the constitution's principle hierarchy (security > development hygiene > simplicity > everything else) and its "Recurring Tasks and Token Cost" rule.
 
+> **Official docs:** [Orchestrate subagents at scale with dynamic workflows](https://code.claude.com/docs/en/workflows) — the canonical reference for the feature (saved/"static" workflows are the [Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse) section of that same page). When in doubt about behavior or limits, check the docs.
+
 ## Default posture: don't reach for a workflow unless it's warranted
 
 For almost everything an operator builds, a normal conversation — or a single subagent for a noisy search — is the right tool. Workflows are not the default. Only start one when **both** are true:
@@ -14,6 +16,8 @@ For almost everything an operator builds, a normal conversation — or a single 
 If a task is just multi-step but small, do it directly or with a subagent. Don't manufacture a workflow because the task "feels big." When unsure whether the scale justifies the cost, say what a workflow would do and roughly what it would cost, and let the operator decide.
 
 ## Choosing the right tool
+
+The official docs have a fuller [subagents vs skills vs agent teams vs workflows](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow) comparison. The short version:
 
 | Use this | When |
 |---|---|
@@ -26,7 +30,7 @@ If a task is just multi-step but small, do it directly or with a subagent. Don't
 Both run on the same runtime. The difference is whether the orchestration is written fresh or kept around:
 
 - **Dynamic / one-off** — Claude writes the script for *this* task and runs it once. Right for a one-time audit, migration, or research question. Nothing is saved.
-- **Saved / reusable (the "static" one)** — after a run does what you wanted, save its script (`/workflows` → `s`) as a `/command`. It then reruns the *same* orchestration every time. Right for a process you repeat: a review you run on every branch, a weekly research digest, a recurring triage. Saved workflows accept input through `args` (e.g. a list of files or a question), so you parameterize instead of editing the script each run.
+- **Saved / reusable (the "static" one)** — after a run does what you wanted, [save its script](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse) (`/workflows` → `s`) as a `/command`. It then reruns the *same* orchestration every time. Right for a process you repeat: a review you run on every branch, a weekly research digest, a recurring triage. Saved workflows accept input through `args` (e.g. a list of files or a question), so you parameterize instead of editing the script each run.
 
 **Rule of thumb (mirrors the constitution's token-cost rule):** if you've run the same one-off workflow more than a couple of times, save it as a command. A saved workflow is cheaper to invoke and gives a repeatable, reviewable process. A one-off you keep rewriting wastes tokens and drifts.
 
