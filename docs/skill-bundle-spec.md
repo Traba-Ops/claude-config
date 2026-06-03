@@ -10,9 +10,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 
 | Type | What it does | Where it goes |
 |------|-------------|---------------|
-| **Constitution** | Role, principles, requirements gathering, security, development hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
-| **Project documentation** | README + SPEC.md, decision records | `~/.claude/rules/traba-spec.md` (always active) |
-| **Workflows** | When to use dynamic workflows, dynamic vs saved, cost discipline | `~/.claude/rules/workflows.md` (always active) |
+| **Constitution** | Role, priority hierarchy, security, how-to-work, before-building, documentation, recurring tasks, dev hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
 | **Teammate calibration** | Infer technical level (declared else inferred); dial handholding for Eng/Product/Data vs operators | `~/.claude/rules/teammate-calibration.md` (always active) |
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
 | **Deployment** | Railway, Google OAuth, Railway Postgres | `~/.claude/skills/deployment/` (loaded when relevant) |
@@ -21,6 +19,8 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
 | **Continue from** | Pick up another background session's work in the current one | `~/.claude/skills/continue-from/` (loaded when relevant) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
+| **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
+| **Workflows** | When/how to use dynamic workflows; dynamic vs saved; cost discipline | `~/.claude/docs/workflows.md` (reference; guardrail in constitution) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
@@ -50,27 +50,15 @@ Defines Claude's role as a technical collaborator for non-technical operators. P
 - **Technical autonomy:** Make technical decisions without asking. Fix technical problems. Only escalate product decisions.
 - **Defer to operational expertise:** Operator knows the domain. Believe them on business logic.
 - **Protect the operator's work:** No destructive git ops, checkpoint before overwriting.
-- **Before building:** Lightweight requirements gathering (problem, user, outcome, data, scope).
-- **Security:** Never hardcode secrets, never commit .env, no stack traces in production.
+- **Before building:** Lightweight requirements gathering (problem, user, outcome, data, scope); invoke project-setup and default to the prescribed stack.
+- **Documentation:** Maintain README + SPEC + decision records as a byproduct of building, updated inline. The field-by-field structure lives in the project-setup skill ("The Living Documents"), not always-on.
+- **Recurring tasks & workflows:** Script vs LLM-run by frequency; dynamic workflows are opt-in and token-heavy — don't start one unless the operator asked ([reference](workflows.md)).
+- **Security:** Never hardcode secrets, never commit .env, no stack traces in production, Traba-Ops org only, Traba Railway team only, no deploy without auth.
 - **Development hygiene:** Checkpoint on request, commit messages explain what and why.
 
-### Project Documentation (`traba-spec.md`)
+The constitution leads with the priority hierarchy and security (highest-priority rules first, where adherence is best), then the behavioral principles, then the conditional/pointer sections.
 
-Maintains two living documents per project, building toward Tier 1 promotion:
-- **README.md** (user-facing): what the app does, who uses it, how to run it, how to use it. Simple and accessible.
-- **SPEC.md** (engineer-facing): business rules, data model with types, key workflows with edge cases, integrations and external dependencies, known limitations. Technical depth an engineer needs to re-implement.
-- **Decision records** (`decisions/YYYY-MM-DD-topic.md`): what the options were, what was chosen and why, what was rejected.
-
-Both documents update continuously as the project evolves — not at session end, not periodically, but when things change. Operator corrections to business logic go directly into the spec.
-
-### Workflows (`workflows.md`)
-
-When and how to use Claude Code's **dynamic workflows** (the script-orchestrates-many-subagents feature; [official docs](https://code.claude.com/docs/en/workflows)). Keeps the default posture conservative so operators don't burn tokens by accident.
-
-- **Not the default:** normal conversation or a single subagent handles almost everything. Only start a workflow when the task truly needs many coordinated agents *and* the operator opted in (said "use a workflow"/"ultracode", invoked a saved workflow, or is in an `ultracode` session).
-- **Dynamic vs saved ("static"):** one-off scripts Claude writes for a single task vs scripts saved as reusable `/commands` (parameterized via `args`) for processes you repeat. Save once you've run the same one-off more than a couple of times.
-- **Cost discipline:** pilot on a slice first, mind the per-agent model, respect that runs count toward plan usage.
-- Inherits the constitution's confirmation rules for workflows that mutate prod, post externally, or are hard to reverse.
+> **Two former always-active rules now load on-demand.** Project-documentation detail moved into the **project-setup skill** (it only matters when building). Dynamic-workflows guidance moved to [`docs/workflows.md`](workflows.md) with a one-line guardrail kept in the constitution. Both governed situations most sessions never hit, so neither earns a slot in every session's context. See [authoring-rules.md](authoring-rules.md) for the standard that decides what stays always-on.
 
 ### Teammate Calibration (`teammate-calibration.md`)
 
@@ -139,6 +127,12 @@ Bundles a small Node helper (`continue-from.mjs`) that reads local Claude Code s
 **Trigger:** User wants something to run on a schedule or repeatedly — "every morning", "each hour", "remind me daily", any recurring job.
 
 Gives Claude the decision rule for *which* scheduling mechanism to use, then the how-to for setting it up. The rule: if each run needs Claude's judgment → a **Claude routine** (cloud, via `/schedule`, draws down subscription usage, hourly minimum); if it's deterministic code → a **macOS LaunchAgent** (local, free, down to 1-minute intervals). Frequency/cost and locality break ties toward LaunchAgent. Bundles `launchagent.template.plist` and the `launchctl` load/remove commands. (LaunchDaemons are intentionally omitted — they need root and aren't an operator self-serve tool.)
+
+### Teammate Collab
+
+**Trigger:** Two operators working the same project at once — the operator says they're co-working, names another teammate on shared work, or shares a Slack thread URL to monitor.
+
+The SOP for two Claudes coordinating through a shared Slack thread (read+write via the Slack MCP), written so the *humans* can follow it: thread setup and first-post lineup, human-readable posting style, decisions-before-doing with hold windows, claim-before-cut to avoid races, the wait protocol (ask the operator before polling), durable handoff to Linear/PR, and what never to post (PII, secrets, raw stack traces). The constitution keeps a one-paragraph pointer always-on; this skill carries the full procedure and loads only when co-working actually starts.
 
 ---
 

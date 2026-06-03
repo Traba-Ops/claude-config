@@ -4,6 +4,8 @@ Claude Code can run **dynamic workflows**: instead of working a task turn by tur
 
 This is a powerful but **token-heavy, opt-in** tool. A single run can use far more tokens than doing the same task in conversation. The guidance below is the default policy for working with Traba operators — it sits under the constitution's principle hierarchy (security > development hygiene > simplicity > everything else) and its "Recurring Tasks and Token Cost" rule.
 
+> **This is reference, not an always-on rule.** The operative guardrail — *don't start a workflow unless the scale genuinely needs many coordinated agents **and** the operator opted in* — lives in the constitution's "Recurring Tasks and Token Cost" section. Read this doc when you're actually about to author or run a workflow.
+
 > **Official docs:** [Orchestrate subagents at scale with dynamic workflows](https://code.claude.com/docs/en/workflows) — the canonical reference for the feature (saved/"static" workflows are the [Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse) section of that same page). When in doubt about behavior or limits, check the docs.
 
 ## Default posture: don't reach for a workflow unless it's warranted

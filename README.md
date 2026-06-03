@@ -81,6 +81,7 @@ The pipeline assumes a handoff between operators and engineers. But we're alread
 | [Promotion Pipeline](docs/pipeline.md) | How projects move from prototype to production, and how specs accumulate |
 | [Running More Than One Claude](docs/multi-session.md) | Background sessions, the continue-from skill, and enabling agent teams |
 | [Skill Bundle Spec](docs/skill-bundle-spec.md) | What goes into the Claude skills bundle and how it's delivered |
+| [Authoring Rules](docs/authoring-rules.md) | The bar a rule must clear to load into every session — read before editing `rules/` |
 | [Open Questions](docs/open-questions.md) | Gaps, deferred decisions, and things to watch |
 
 ---

@@ -122,8 +122,35 @@ When starting a new project:
 10. Add `"typecheck": "tsgo --noEmit"` to each app's `package.json` scripts
 11. Set up the backend to serve the frontend in production (see deployment skill for details). The backend should serve static files from `../web/dist/` with a SPA catch-all fallback after all API routes.
 12. Add a `railway.json` at the repo root (see deployment skill for the template). This prevents Nixpacks from guessing wrong in the monorepo.
-13. Create the project documentation skeleton (see the `traba-spec` rule for what goes in each):
+13. Create the project documentation skeleton (see "The Living Documents" below for what goes in each):
     - `README.md` — what this does, who uses it, how to run it, how to use it
     - `SPEC.md` — business rules, data model, key workflows, integrations, known limitations
     - `decisions/` directory for append-only decision records
 14. Run `bun install` from root to link workspaces
+
+## The Living Documents
+
+The constitution requires three docs maintained as a byproduct of building — README, SPEC, and decision records. Neither the README nor the SPEC requires effort from the operator; they're written as you work and updated inline when things change, not at session end. Here's what goes in each.
+
+### README.md
+
+For anyone who opens the repo or uses the app. Keep it short, no technical depth.
+
+- **What this does:** one paragraph on the problem and the solution
+- **Who uses it:** which team, what workflow, how often
+- **How to run it:** setup steps, environment variables, prerequisites
+- **How to use it:** the main things users do, briefly
+
+### SPEC.md
+
+Enough that an engineer could re-implement the app from it alone. Accumulates detail as the project grows.
+
+- **Business rules:** the actual logic the app encodes. Not "manages shifts" but "shifts within 30 miles of a worker's home zip are local; beyond that, travel pay applies." When the operator corrects your understanding, capture the corrected rule here.
+- **Data model:** tables/collections, fields with types, relationships, where data comes from (MCP tools, APIs, manual entry). Example values where they clarify meaning.
+- **Key workflows:** step-by-step, including error and edge cases — precise enough to implement without the operator present.
+- **Integrations:** external systems the app talks to (APIs, MCP tools, databases, third-party services): what goes in, what comes back, what credentials are needed.
+- **Known limitations:** what it doesn't handle, known bugs, workarounds, things intentionally simple.
+
+### Decision records (`decisions/YYYY-MM-DD-topic.md`)
+
+When a meaningful choice is made (e.g., "polling instead of websockets because the data only changes hourly"), record the options with trade-offs, what was chosen, and why. Append-only — if a decision is later reversed, write a new record explaining why. Commit them automatically.
