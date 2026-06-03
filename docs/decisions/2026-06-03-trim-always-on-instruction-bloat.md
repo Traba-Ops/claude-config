@@ -52,6 +52,20 @@ This principle lives here, in a decision record, rather than in the constitution
 
 Always-on rule payload: **~3,900 → ~1,830 words (~53% reduction)**, with zero capability loss — teammate-collab is invoked on the co-working signal, workflow detail is read when authoring a workflow, and deploy-discipline fires from the deployment skill. More to the point of Sumeet's concern: the two topics he flagged now occupy **one sentence each** in the always-on context instead of ~2,000 words combined, so the rules that remain are short enough to actually be followed.
 
+## Second wave — framework-wide trim, reorder, and a standard
+
+The workflows/co-working fix prompted a broader question: the bloat is probably everywhere, so what *is* a useful instruction? We researched current best practice (Anthropic's own Claude Code docs, plus instruction-following benchmarks IFScale / ManyIFEval and Chroma's context-rot work) and applied it. Key external findings: adherence drops below ~90% somewhere between 150–250 simultaneous instructions and whole-prompt compliance collapses far earlier; long context is itself a tax; earlier instructions are followed better; Anthropic states outright that bloated always-on files make Claude *ignore* real instructions. Full rubric: [`docs/authoring-rules.md`](authoring-rules.md).
+
+Applied to the framework:
+
+1. **Constitution reordered for primacy.** Priority hierarchy and Security moved to the top (Security was previously second-from-last, despite being the stated #1 priority). Behavioral principles, then conditional/pointer sections, follow.
+2. **Constitution compressed.** Prose explanations cut to imperatives — e.g. "Recurring Tasks" went from ~160 words of LLM-vs-script exposition to a two-line rule. ~1,080 → ~680 words, denser and better-ordered.
+3. **`traba-spec.md` removed from always-on.** It's doc-maintenance that only matters when building a project, and it duplicated the constitution's documentation section. The always-on directive (maintain README/SPEC/decision-records inline) is now ~4 lines in the constitution; the field-by-field structure moved into the **project-setup skill** ("The Living Documents"), which fires at project creation — exactly when it's needed.
+4. **`teammate-calibration.md` compressed** ~393 → ~155 words, same rules.
+5. **Authoring standard added** (`docs/authoring-rules.md`) so the always-on layer doesn't silently regrow: the three-part keep test (universal · non-inferable · instruction-not-documentation), the routing table (skill / path-scoped rule / doc / tool), and the writing conventions, all with citations.
+
+Result after both waves: always-on rule payload **~3,900 → ~844 words / 64 lines across two files** (constitution + calibration), reordered so the highest-priority rules sit where adherence is best. Every cut item remains reachable on its natural trigger.
+
 ## Relationship to prior records
 
 Supersedes the delivery choice in [2026-06-03-dynamic-workflows-guidance.md](2026-06-03-dynamic-workflows-guidance.md), which put workflows guidance in `rules/workflows.md` as an always-active rule. That record's reasoning ("rules are the only channel that shapes the agent's behavior every session") held for the *guardrail*, which is why the guardrail stays in the constitution — but the full reference did not need to be always-on.

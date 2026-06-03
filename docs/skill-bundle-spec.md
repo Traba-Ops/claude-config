@@ -10,8 +10,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 
 | Type | What it does | Where it goes |
 |------|-------------|---------------|
-| **Constitution** | Role, principles, requirements gathering, security, development hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
-| **Project documentation** | README + SPEC.md, decision records | `~/.claude/rules/traba-spec.md` (always active) |
+| **Constitution** | Role, priority hierarchy, security, how-to-work, before-building, documentation, recurring tasks, dev hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
 | **Teammate calibration** | Infer technical level (declared else inferred); dial handholding for Eng/Product/Data vs operators | `~/.claude/rules/teammate-calibration.md` (always active) |
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
 | **Deployment** | Railway, Google OAuth, Railway Postgres | `~/.claude/skills/deployment/` (loaded when relevant) |
@@ -51,20 +50,15 @@ Defines Claude's role as a technical collaborator for non-technical operators. P
 - **Technical autonomy:** Make technical decisions without asking. Fix technical problems. Only escalate product decisions.
 - **Defer to operational expertise:** Operator knows the domain. Believe them on business logic.
 - **Protect the operator's work:** No destructive git ops, checkpoint before overwriting.
-- **Before building:** Lightweight requirements gathering (problem, user, outcome, data, scope).
-- **Security:** Never hardcode secrets, never commit .env, no stack traces in production.
+- **Before building:** Lightweight requirements gathering (problem, user, outcome, data, scope); invoke project-setup and default to the prescribed stack.
+- **Documentation:** Maintain README + SPEC + decision records as a byproduct of building, updated inline. The field-by-field structure lives in the project-setup skill ("The Living Documents"), not always-on.
+- **Recurring tasks & workflows:** Script vs LLM-run by frequency; dynamic workflows are opt-in and token-heavy — don't start one unless the operator asked ([reference](workflows.md)).
+- **Security:** Never hardcode secrets, never commit .env, no stack traces in production, Traba-Ops org only, Traba Railway team only, no deploy without auth.
 - **Development hygiene:** Checkpoint on request, commit messages explain what and why.
 
-### Project Documentation (`traba-spec.md`)
+The constitution leads with the priority hierarchy and security (highest-priority rules first, where adherence is best), then the behavioral principles, then the conditional/pointer sections.
 
-Maintains two living documents per project, building toward Tier 1 promotion:
-- **README.md** (user-facing): what the app does, who uses it, how to run it, how to use it. Simple and accessible.
-- **SPEC.md** (engineer-facing): business rules, data model with types, key workflows with edge cases, integrations and external dependencies, known limitations. Technical depth an engineer needs to re-implement.
-- **Decision records** (`decisions/YYYY-MM-DD-topic.md`): what the options were, what was chosen and why, what was rejected.
-
-Both documents update continuously as the project evolves — not at session end, not periodically, but when things change. Operator corrections to business logic go directly into the spec.
-
-> **Workflows guidance is no longer an always-active rule.** The one operative line — don't start a workflow unless the scale needs many coordinated agents *and* the operator opted in — lives in the constitution's "Recurring Tasks and Token Cost" section. The full reference (dynamic vs saved, cost discipline, confirmation rules) moved to [`docs/workflows.md`](workflows.md), read on-demand. It governs an opt-in feature most sessions never touch, so it doesn't earn a slot in every session's context.
+> **Two former always-active rules now load on-demand.** Project-documentation detail moved into the **project-setup skill** (it only matters when building). Dynamic-workflows guidance moved to [`docs/workflows.md`](workflows.md) with a one-line guardrail kept in the constitution. Both governed situations most sessions never hit, so neither earns a slot in every session's context. See [authoring-rules.md](authoring-rules.md) for the standard that decides what stays always-on.
 
 ### Teammate Calibration (`teammate-calibration.md`)
 
