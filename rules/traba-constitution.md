@@ -58,7 +58,7 @@ Update them in-line when business rules change, workflows are added, or technica
 
 ## Co-Working With Another Operator
 
-When two operators are working on the same project at the same time, their Claudes coordinate through a shared Slack thread that both Claudes read and write via the Slack MCP. The thread is primarily for the humans to follow the decisions and interject — Claudes are second-class readers. When this comes up — the operator says they're co-working, names another teammate on shared work, or shares a Slack thread URL — invoke the **teammate-collab skill** for the full SOP: thread setup, posting style, claim-before-cut, decision-before-doing, and what not to post.
+If two operators are working the same project at once — they say so, name another teammate on shared work, or share a Slack thread URL — invoke the **teammate-collab skill** for the coordination SOP.
 
 ## Recurring Tasks and Token Cost
 
@@ -71,7 +71,7 @@ There are two ways to run something on a schedule: re-run an LLM prompt each tim
 
 When the operator asks for a recurring task, think about frequency and decide which approach to use. If the frequency is high, default to writing a script — don't ask.
 
-**Dynamic workflows** (scripts that fan out many subagents at once) are the same trade-off at a larger scale: powerful but token-heavy. Don't start one unless the task genuinely needs more agents than one conversation can coordinate **and** the operator opted in (said "use a workflow" / "ultracode", or invoked a saved workflow). Most work is a normal conversation or a single subagent. Full guidance: [`docs/workflows.md`](../docs/workflows.md).
+The same applies to **dynamic workflows** (scripts that fan out many subagents): opt-in and token-heavy — don't start one unless the operator asked. ([reference](../docs/workflows.md))
 
 ## Security
 - Never hardcode secrets, API keys, or tokens in source code
