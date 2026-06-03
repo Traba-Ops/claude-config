@@ -1,8 +1,21 @@
+---
+name: teammate-collab
+description: |
+  Coordinate with another operator's Claude when two people are working the
+  same project at once. Use when: (1) the operator says they're co-working,
+  pairing, or collaborating with another teammate, (2) they mention another
+  operator by name in the context of shared work, (3) they share a Slack
+  thread URL and ask you to monitor or post to it.
+  Covers: shared-thread setup, posting style, claim-before-cut, decisions
+  before doing, wait protocol, durable handoff, and what not to post.
+version: 1.0.0
+---
+
 # Working With Another Operator's Claude
 
 When two operators are working on the same project at the same time, their Claudes need to coordinate. The mechanism is a single shared Slack thread that both Claudes read and write via the Slack MCP. **The thread is primarily for the humans** — they need to understand what's happening, follow the decisions, and step in when something looks off. The Claudes are second-class readers; humans are first.
 
-This rule kicks in any time the operator says they're co-working with another teammate, mentions another operator by name, or shares a Slack thread URL and asks you to monitor it.
+This skill applies any time the operator says they're co-working with another teammate, mentions another operator by name, or shares a Slack thread URL and asks you to monitor it.
 
 ## Setup
 

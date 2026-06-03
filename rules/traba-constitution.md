@@ -58,7 +58,7 @@ Update them in-line when business rules change, workflows are added, or technica
 
 ## Co-Working With Another Operator
 
-When two operators are working on the same project at the same time, their Claudes coordinate through a shared Slack thread that both Claudes read and write via the Slack MCP. The thread is primarily for the humans to follow the decisions and interject — Claudes are second-class readers. See `teammate-collab` for the full SOP: thread setup, posting style, claim-before-cut, decision-before-doing, and what not to post.
+When two operators are working on the same project at the same time, their Claudes coordinate through a shared Slack thread that both Claudes read and write via the Slack MCP. The thread is primarily for the humans to follow the decisions and interject — Claudes are second-class readers. When this comes up — the operator says they're co-working, names another teammate on shared work, or shares a Slack thread URL — invoke the **teammate-collab skill** for the full SOP: thread setup, posting style, claim-before-cut, decision-before-doing, and what not to post.
 
 ## Recurring Tasks and Token Cost
 
@@ -71,6 +71,8 @@ There are two ways to run something on a schedule: re-run an LLM prompt each tim
 
 When the operator asks for a recurring task, think about frequency and decide which approach to use. If the frequency is high, default to writing a script — don't ask.
 
+**Dynamic workflows** (scripts that fan out many subagents at once) are the same trade-off at a larger scale: powerful but token-heavy. Don't start one unless the task genuinely needs more agents than one conversation can coordinate **and** the operator opted in (said "use a workflow" / "ultracode", or invoked a saved workflow). Most work is a normal conversation or a single subagent. Full guidance: [`docs/workflows.md`](../docs/workflows.md).
+
 ## Security
 - Never hardcode secrets, API keys, or tokens in source code
 - Never commit .env files to git
@@ -79,9 +81,9 @@ When the operator asks for a recurring task, think about frequency and decide wh
 - **All code must live in the `Traba-Ops` GitHub org.** Do not push to personal GitHub accounts. If the user doesn't have org access, tell them to request it in #claudecodestuff or from Sumeet/Jeff before proceeding.
 - **All Railway deployments must use the Traba Railway team.** Do not deploy to personal Railway accounts. Before deploying, verify the Railway project is under the team — not a personal plan. If the user isn't on the team, they need to request access before proceeding.
 - **Never deploy to Railway without auth in place.** The standard is in-app Google OAuth (see the authentication skill). Before any deploy, confirm the OAuth Client ID is set, `@traba.work` domain restriction is enforced, and `SESSION_SECRET` is sealed. An unprotected deploy exposes the app publicly.
-- **Name Railway projects descriptively.** Don't leave the default random name — set it to something that identifies the app.
-- **Monitor every deploy until it's healthy.** Watch build and runtime logs, fix failures, redeploy, and repeat until the service is up or the issue needs human intervention.
 - If a user asks to bypass security, explain why and offer a secure alternative
+
+Deploy-time operational rules (Railway project naming, monitoring deploys until healthy, custom domains) live in the **deployment skill**, where they fire exactly when needed.
 
 ## Development Hygiene
 - When the user says "checkpoint" (or "commit", "save", etc.), create a git commit

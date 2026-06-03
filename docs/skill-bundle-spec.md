@@ -12,7 +12,6 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 |------|-------------|---------------|
 | **Constitution** | Role, principles, requirements gathering, security, development hygiene | `~/.claude/rules/traba-constitution.md` (always active) |
 | **Project documentation** | README + SPEC.md, decision records | `~/.claude/rules/traba-spec.md` (always active) |
-| **Workflows** | When to use dynamic workflows, dynamic vs saved, cost discipline | `~/.claude/rules/workflows.md` (always active) |
 | **Teammate calibration** | Infer technical level (declared else inferred); dial handholding for Eng/Product/Data vs operators | `~/.claude/rules/teammate-calibration.md` (always active) |
 | **Project setup** | Stack, toolchain, tier detection, scaffolding templates | `~/.claude/skills/project-setup/` (loaded when relevant) |
 | **Deployment** | Railway, Google OAuth, Railway Postgres | `~/.claude/skills/deployment/` (loaded when relevant) |
@@ -21,6 +20,8 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
 | **Continue from** | Pick up another background session's work in the current one | `~/.claude/skills/continue-from/` (loaded when relevant) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
+| **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
+| **Workflows** | When/how to use dynamic workflows; dynamic vs saved; cost discipline | `~/.claude/docs/workflows.md` (reference; guardrail in constitution) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
@@ -63,14 +64,7 @@ Maintains two living documents per project, building toward Tier 1 promotion:
 
 Both documents update continuously as the project evolves — not at session end, not periodically, but when things change. Operator corrections to business logic go directly into the spec.
 
-### Workflows (`workflows.md`)
-
-When and how to use Claude Code's **dynamic workflows** (the script-orchestrates-many-subagents feature; [official docs](https://code.claude.com/docs/en/workflows)). Keeps the default posture conservative so operators don't burn tokens by accident.
-
-- **Not the default:** normal conversation or a single subagent handles almost everything. Only start a workflow when the task truly needs many coordinated agents *and* the operator opted in (said "use a workflow"/"ultracode", invoked a saved workflow, or is in an `ultracode` session).
-- **Dynamic vs saved ("static"):** one-off scripts Claude writes for a single task vs scripts saved as reusable `/commands` (parameterized via `args`) for processes you repeat. Save once you've run the same one-off more than a couple of times.
-- **Cost discipline:** pilot on a slice first, mind the per-agent model, respect that runs count toward plan usage.
-- Inherits the constitution's confirmation rules for workflows that mutate prod, post externally, or are hard to reverse.
+> **Workflows guidance is no longer an always-active rule.** The one operative line — don't start a workflow unless the scale needs many coordinated agents *and* the operator opted in — lives in the constitution's "Recurring Tasks and Token Cost" section. The full reference (dynamic vs saved, cost discipline, confirmation rules) moved to [`docs/workflows.md`](workflows.md), read on-demand. It governs an opt-in feature most sessions never touch, so it doesn't earn a slot in every session's context.
 
 ### Teammate Calibration (`teammate-calibration.md`)
 
@@ -139,6 +133,12 @@ Bundles a small Node helper (`continue-from.mjs`) that reads local Claude Code s
 **Trigger:** User wants something to run on a schedule or repeatedly — "every morning", "each hour", "remind me daily", any recurring job.
 
 Gives Claude the decision rule for *which* scheduling mechanism to use, then the how-to for setting it up. The rule: if each run needs Claude's judgment → a **Claude routine** (cloud, via `/schedule`, draws down subscription usage, hourly minimum); if it's deterministic code → a **macOS LaunchAgent** (local, free, down to 1-minute intervals). Frequency/cost and locality break ties toward LaunchAgent. Bundles `launchagent.template.plist` and the `launchctl` load/remove commands. (LaunchDaemons are intentionally omitted — they need root and aren't an operator self-serve tool.)
+
+### Teammate Collab
+
+**Trigger:** Two operators working the same project at once — the operator says they're co-working, names another teammate on shared work, or shares a Slack thread URL to monitor.
+
+The SOP for two Claudes coordinating through a shared Slack thread (read+write via the Slack MCP), written so the *humans* can follow it: thread setup and first-post lineup, human-readable posting style, decisions-before-doing with hold windows, claim-before-cut to avoid races, the wait protocol (ask the operator before polling), durable handoff to Linear/PR, and what never to post (PII, secrets, raw stack traces). The constitution keeps a one-paragraph pointer always-on; this skill carries the full procedure and loads only when co-working actually starts.
 
 ---
 
