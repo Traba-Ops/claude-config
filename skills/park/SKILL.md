@@ -11,7 +11,7 @@ description: |
   "I want to be able to come back to this".
   Companion to /unpark, which searches parked notes AND live sessions.
 user-invocable: true
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Park: snapshot a session to a durable note for later revival
@@ -37,9 +37,12 @@ Resolve and ensure it exists with one shell call before writing:
 PARK_DIR="${CLAUDE_PARK_DIR:-$HOME/.claude-park}"; mkdir -p "$PARK_DIR"; echo "$PARK_DIR"
 ```
 
-Write one note per parked session as `$PARK_DIR/YYYY-MM-DD-<slug>.md` (slug =
-kebab-case of the title). `/unpark` reads from the same `$CLAUDE_PARK_DIR` /
-default, so the two always agree.
+One note per **session** — not one per park. A not-yet-parked session writes a new
+`$PARK_DIR/YYYY-MM-DD-<slug>.md` (slug = kebab-case of the title); re-parking a
+session that's already parked updates that same file in place (see *Re-parking is
+idempotent* below — this is the common case, since you park, unpark, work more, and
+park again). `/unpark` reads from the same `$CLAUDE_PARK_DIR` / default, so the two
+always agree.
 
 > **First-time tip:** if the user wants these in their Obsidian vault (so they're
 > searchable there and sync across machines), tell them to set `CLAUDE_PARK_DIR`
@@ -60,6 +63,33 @@ default, so the two always agree.
   (or `bun` if node is missing). Use the printed goal / last status / recent
   activity as your source material.
 
+## Re-parking is idempotent — update, don't duplicate
+
+A session is parked **once**, then updated. If you unpark a session, do more work,
+and `/park` it again, update the existing note in place — never mint a second dated
+file for the same session. The match key is the session identity in frontmatter
+(`session_id`, else `short_id`) — **not** the filename, since the date prefix and
+title both drift between parks.
+
+Before writing, look for an existing note for this session:
+
+```bash
+PARK_DIR="${CLAUDE_PARK_DIR:-$HOME/.claude-park}"; mkdir -p "$PARK_DIR"
+SHORT="$(basename "${CLAUDE_JOB_DIR:-}")"   # this session's short id ("" if unknown)
+# Parking ANOTHER session via the unpark helper? Use the short_id it printed instead.
+EXISTING=""
+[ -n "$SHORT" ] && EXISTING="$(grep -rlE "^(session_id|short_id): *${SHORT}$" "$PARK_DIR"/*.md 2>/dev/null | head -1)"
+echo "PARK_DIR=$PARK_DIR"; echo "SHORT=$SHORT"; echo "EXISTING=${EXISTING:-<none — new note>}"
+```
+
+- **`EXISTING` is a path → update it.** Overwrite that exact file. Keep its original
+  filename and its original `parked:` date; refresh the whole body, bump `status:`,
+  and set `updated:` to today.
+- **`EXISTING` is empty → create.** Write a fresh `$PARK_DIR/YYYY-MM-DD-<slug>.md`.
+
+If neither `session_id` nor `short_id` is knowable (rare), fall back to matching an
+existing note with the same `<slug>` before creating one.
+
 ## What to capture (the note body)
 
 Synthesis over dump. The reader is a future Claude (or the user) with **zero**
@@ -73,7 +103,8 @@ Write the file with this exact frontmatter + structure:
 ---
 type: claude-session-park
 title: <short human title — what this work IS>
-parked: <today's date, YYYY-MM-DD>
+parked: <date first parked, YYYY-MM-DD — keep the original on re-park>
+updated: <today's date, YYYY-MM-DD>
 session_id: <full session id if known, else "">
 short_id: <8-char job id if known, else "">
 cwd: <working directory>
@@ -114,8 +145,9 @@ know a field, leave it blank rather than guessing — don't fabricate IDs.
 
 ## After writing
 
-Confirm in one line: the note title, its path, and that it's findable via
-`/unpark <topic>`. Don't read the file back to verify — Write errors if it failed.
+Confirm in one line: whether you **created or updated** the note, its title, its
+path, and that it's findable via `/unpark <topic>`. Don't read the file back to
+verify — Write errors if it failed.
 
 ## Related
 
