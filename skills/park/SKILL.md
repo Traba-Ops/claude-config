@@ -149,6 +149,32 @@ Confirm in one line: whether you **created or updated** the note, its title, its
 path, and that it's findable via `/unpark <topic>`. Don't read the file back to
 verify — Write errors if it failed.
 
+## Cross-machine sync (git-backed park dirs)
+
+A parked note only travels between machines if its directory is shared. iCloud /
+Dropbox dirs sync laptop⇄laptop automatically — but a **cloud Claude Code
+container has no iCloud**, so for a laptop⇄cloud round-trip the park dir must be a
+**git repo** (git is the only sync medium the cloud has).
+
+So: **if the resolved park dir is inside a git working tree, push the note after
+writing it** — otherwise the other machine never sees it. Detect and sync with:
+
+```bash
+if git -C "$PARK_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -C "$PARK_DIR" add -- "$(basename "$NOTE_PATH")"
+  git -C "$PARK_DIR" commit -q -m "park: <slug>" && git -C "$PARK_DIR" push -q
+fi
+```
+
+If the park dir is **not** a git repo (the common laptop case — an iCloud/Dropbox
+vault), skip this entirely; the host sync handles it. Only commit the single note
+you just wrote, never `git add -A` (the dir may hold unrelated notes). If the push
+fails (no upstream, auth), report it plainly — the note is still saved locally.
+
+> On the laptop, the user may keep park/unpark pointed at their Obsidian vault and
+> bridge only specific notes into a git repo for a cloud hop. Honor whatever
+> `$CLAUDE_PARK_DIR` resolves to; don't force a git dir on a non-git workflow.
+
 ## Related
 
 - **/unpark** — the pickup side: searches these parked notes *and* live background

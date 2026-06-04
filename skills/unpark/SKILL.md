@@ -31,6 +31,18 @@ pins an exact target.
 
 ## How to use it
 
+If the park dir is a **git repo**, pull first so you see notes parked from another
+machine (e.g. a cloud session) — otherwise you'd revive a stale copy:
+
+```bash
+PARK_DIR="${CLAUDE_PARK_DIR:-$HOME/.claude-park}"
+git -C "$PARK_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  && git -C "$PARK_DIR" pull --ff-only -q || true
+```
+
+Skip it silently if the park dir isn't a git repo (the common laptop / iCloud
+case — host sync already handles it). Then run the helper:
+
 ```bash
 node ~/.claude/skills/unpark/unpark.mjs "the payroll flaky test fix"
 ```
