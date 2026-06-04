@@ -17,7 +17,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
-| **Continue from** | Pick up another background session's work in the current one | `~/.claude/skills/continue-from/` (loaded when relevant) |
+| **Park / Unpark** | Save a session to a durable snapshot, then resume a live session or revive a parked one | `~/.claude/skills/park/`, `~/.claude/skills/unpark/` (loaded when relevant) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
 | **Workflows** | When/how to use dynamic workflows; dynamic vs saved; cost discipline | `~/.claude/docs/workflows.md` (reference; guardrail in constitution) |
@@ -116,11 +116,16 @@ Single-file skill (~620 lines): critical rules at top, then all tokens, componen
 
 Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
 
-### Continue From
+### Park / Unpark
 
-**Trigger:** User wants to pick up, resume, or take over what another background Claude session was working on — e.g. "continue from the session where I was doing X."
+**Trigger:** User wants to save a session for later ("park this", "save this context"), or to pick up / resume / revive prior work — e.g. "continue from the session where I was doing X", "revive the parked session about Y".
 
-Bundles a small Node helper (`continue-from.mjs`) that reads local Claude Code state — `claude agents --json` for the session list, each session's `state.json` for its goal and last status, and the transcript for recent activity — and prints a clean snapshot so the current session can continue the other one's work. Matching scores a free-text hint against each session's goal/status, not just its name. One-way "read and continue"; it does not message or modify the other session. See [Running More Than One Claude](multi-session.md) for the broader multi-session story (background sessions, this skill, and agent teams).
+Two complementary skills for context handoff across sessions:
+
+- **Park** writes a durable, human-readable snapshot of the current (or a named background) session — goal, key decisions, where it left off, next steps — into a directory the user chooses via `CLAUDE_PARK_DIR` (an Obsidian vault folder, a synced dir, etc.; default `~/.claude-park`). This outlives the ~30-day transcript cleanup, syncs across machines, and is searchable by topic.
+- **Unpark** bundles a small Node helper (`unpark.mjs`) that reads local Claude Code state — `claude agents --json` for live sessions, each session's `state.json` for goal/status, and the transcript for recent activity — **and** scans the parked snapshots. It ranks both sources against a free-text hint and prints a clean context block so the current session can **resume a live session or revive a dead one** from its parked note. One-way "read and continue"; it does not message or modify the other session.
+
+Replaces the earlier live-only `continue-from` skill. See [Running More Than One Claude](multi-session.md) for the broader multi-session story (background sessions, these skills, and agent teams).
 
 ### Scheduling
 

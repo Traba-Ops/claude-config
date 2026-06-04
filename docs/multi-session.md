@@ -3,7 +3,7 @@
 You can run several Claude Code sessions at once — each on its own task. Two extra
 tools make working across them easy.
 
-## Continue another session's work — the `continue-from` skill
+## Pick up another session's work — the `park` / `unpark` skills
 
 You run sessions in the background with `claude agents` (or `claude --bg`); that
 dashboard shows everything that's running. When you want to pick up what one of
@@ -11,10 +11,24 @@ those sessions was doing inside your current session, just say so in plain Engli
 
 > "Continue from the session where I was doing the payroll flaky-test fix."
 
-Claude finds that session by **what it was working on** (not just its name), pulls
-in its goal and recent progress, and keeps going from there. The other session is
-left untouched. If you don't remember which one, ask "what were my other sessions
-working on?" and Claude will list them with a one-line summary of each.
+Claude (via the `unpark` skill) finds that session by **what it was working on**
+(not just its name), pulls in its goal and recent progress, and keeps going from
+there. The other session is left untouched. If you don't remember which one, ask
+"what were my other sessions working on?" and Claude will list them with a one-line
+summary of each.
+
+**The catch with live sessions:** background transcripts are auto-deleted after
+~30 days, live on only one machine, and get hard to find among dozens of cryptic
+job IDs. So before you close a session you might want back later, **park it**:
+
+> "Park this session."
+
+That writes a durable, human-readable snapshot (goal, decisions, where it left off,
+next steps) into a folder you choose — set `CLAUDE_PARK_DIR` to an Obsidian vault
+folder or any synced directory, or it defaults to `~/.claude-park`. Later, the same
+`unpark` request searches **both** live sessions *and* parked snapshots, so it can
+**revive a dead session** from its note long after the transcript is gone — even on
+another machine. One command, two sources: resume what's alive, revive what's parked.
 
 ## Agent teams — Claudes that collaborate on one task
 
