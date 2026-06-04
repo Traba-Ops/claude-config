@@ -79,7 +79,7 @@ The pipeline assumes a handoff between operators and engineers. But we're alread
 | [Prescriptive Stack](docs/stack.md) | What to use and why — the full technology prescription |
 | [Security Guardrails](docs/security.md) | Hard checks, SDLC controls, and infrastructure-level protections |
 | [Promotion Pipeline](docs/pipeline.md) | How projects move from prototype to production, and how specs accumulate |
-| [Running More Than One Claude](docs/multi-session.md) | Background sessions, the continue-from skill, and enabling agent teams |
+| [Running More Than One Claude](docs/multi-session.md) | Background sessions, the park/unpark skills, and enabling agent teams |
 | [Skill Bundle Spec](docs/skill-bundle-spec.md) | What goes into the Claude skills bundle and how it's delivered |
 | [Open Questions](docs/open-questions.md) | Gaps, deferred decisions, and things to watch |
 
