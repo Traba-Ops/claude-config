@@ -6,7 +6,7 @@ description: |
   accounts, ADC, or separate OAuth scopes. Use when: (1) an app needs to query
   BigQuery data, (2) user asks about data access or Traba business data,
   (3) user needs to authenticate users for BigQuery queries.
-version: 2.2.0
+version: 2.3.0
 ---
 
 # BigQuery Auth (traba-auth)
@@ -32,6 +32,8 @@ Traba apps never hold GCP credentials directly. Instead, they authenticate users
 6. traba-auth validates the JWT, loads the user's Google OAuth tokens, and executes the query via BigQuery
 
 JWTs expire after 60 minutes. BigQuery credentials are refreshed automatically server-side — users only need to re-authenticate when their JWT expires. If a `/query` request returns 401, clear the stored token and restart the login flow.
+
+> **Headless/scheduled jobs can't query on their own.** Every `/query` executes under a logged-in user's JWT (60-min lifetime), so cron jobs, webhooks, and background workers have no session to use. Design scheduled BQ work to be triggered by an authenticated user (e.g. an admin button), not by an unattended timer.
 
 ## Production Setup — Required Before Deploying
 
@@ -101,9 +103,12 @@ Execute a read-only BigQuery query. **Write queries (INSERT, UPDATE, DELETE, DRO
 |--------|---------|------|
 | 200 | Success | `{"rows": [...]}` |
 | 400 | Query too expensive or write SQL rejected | `{"detail": "..."}` |
+| 403 | BigQuery denied the query — usually a table not qualified with `traba-app` (resolved to wrong project), or a real permissions gap | `{"detail": "..."}` |
 | 401 | JWT expired or revoked | `{"message": "...", "login_url": "..."}` |
 | 429 | Rate limit exceeded (30 queries/min per user) | `{"detail": "Rate limit exceeded"}` |
 | 500 | Server error | `{"request_id": "...", "message": "Internal server error"}` |
+
+**Got a 403 ("...does not have permission ... or perhaps it does not exist")?** Almost all Traba data lives in the `traba-app` project — check the project first. An unqualified table (`dataset.table`) resolves against the proxy's *default* project, not `traba-app`, and throws this exact misleading error. Fully-qualify every table — `` `traba-app.dataset.table` `` (hyphenated project IDs must be backtick-wrapped) — before assuming a permissions gap or escalating to #data.
 
 Use `?` placeholders for dynamic values. Note: traba-auth treats all `?` parameters as `STRING` type. For non-string values (integers, floats, arrays) or BigQuery named parameters (`@name`), inline the values with proper escaping instead of using `params`.
 
@@ -116,7 +121,7 @@ import httpx
 
 TRABA_AUTH_URL = os.getenv("TRABA_AUTH_URL", "http://localhost:8000")  # local traba-auth for dev
 APP_NAME = "your-app-name"  # short, descriptive — used in BigQuery audit logs
-APP_URL = os.getenv("APP_URL", "http://localhost:8501")  # set APP_URL env var in Railway
+APP_URL = os.getenv("APP_URL", "http://localhost:8080")  # set in Railway; local: run with --server.port 8080 (Streamlit's default 8501 is NOT whitelisted)
 
 def require_auth():
     """Call at the top of every page. Returns when user is authenticated."""
@@ -250,7 +255,12 @@ async function queryBQ(sql: string, params: string[], token: string): Promise<Re
   // and redirect to /auth/login — don't just show an error.
   if (resp.status === 401) throw new Error("SESSION_EXPIRED");
   if (resp.status === 429) throw new Error("RATE_LIMITED");
-  if (!resp.ok) throw new Error(`BQ query failed: ${resp.status}`);
+  if (!resp.ok) {
+    // Surface the proxy/BigQuery detail — a 403 here is often a table that
+    // wasn't project-qualified, and the detail text is how you tell.
+    const detail = await resp.json().catch(() => ({ detail: "Unknown error" })) as { detail?: string };
+    throw new Error(`BQ query failed (${resp.status}): ${detail.detail ?? "Unknown"}`);
+  }
   const data = await resp.json() as { rows: Record<string, unknown>[] };
   return data.rows;
 }
@@ -365,6 +375,8 @@ The reason: a DEV_MODE bypass is a credential-sharing vector. It runs queries as
 
 Run your app on `http://localhost:8000` or `http://localhost:8080` — both are pre-whitelisted in prod traba-auth's `ALLOWED_REDIRECT_ORIGINS`, so no coordination with Charles is needed.
 
+> ⚠️ **Your app must actually listen on that port and build its `redirect_uri` from it.** Most frameworks default elsewhere (Express/Hono → 3000, Vite → 5173, Streamlit → 8501). If your app's origin isn't exactly `http://localhost:8000` or `http://localhost:8080`, the redirect origin check fails **silently** — no error, login just never completes. Set both your server port *and* the `APP_URL`/`BASE_URL` used to build `redirect_uri` to the whitelisted origin.
+
 ```bash
 # In your app's .env:
 TRABA_AUTH_URL=https://data-proxy.traba.work
@@ -405,6 +417,15 @@ logger.info(f"Query executed by {email}: {len(rows)} rows in {elapsed:.2f}s")
 
 In FastAPI, keep the token in a `ContextVar` (request-scoped). Never assign it to a module-level variable, a class attribute, a background task, or anything that outlives the request. A leaked token lets subsequent requests execute BigQuery queries as the wrong user.
 
+### Never persist BQ data or auth tokens in the app's database
+
+These apps usually have a Railway Postgres attached for their own domain data. Do **not** use it (or any other store — Redis, files, runtime-written env) to hold:
+
+- **BigQuery results or anything derived from them.** Query fresh under the requesting user's token every time — a persisted copy outlives the session and sits outside BigQuery's RBAC. The "never cache across users" rule applies to your own domain tables too, not just an explicit cache.
+- **Auth tokens of any kind** — the traba-auth JWT, Google OAuth access/refresh tokens, anything bearer-equivalent. Tokens live in an httpOnly cookie / request scope and are re-fetched via login. A token row in Postgres is a credential-at-rest that survives logout and is readable by anyone with DB access.
+
+If you find yourself adding an `auth_tokens`, `*_cache`, or `bq_*` table, stop — that's the anti-pattern. Tokens belong in the request (cookie / `ContextVar`); BQ data belongs in BigQuery.
+
 ### Call `/auth/logout` on logout — tokens are now revoked server-side
 
 Logout adds the JWT to a blocklist in traba-auth. A logged-out token is immediately invalid for all subsequent requests. Always call `GET /auth/logout` with the Bearer token when the user logs out — don't just clear local state.
@@ -429,6 +450,7 @@ def inline_string(value: str) -> str:
 
 - **Always** set `X-App-Name` on every request — it's how queries get attributed in BigQuery audit logs
 - **Never** store GCP credentials in the app — all data access goes through traba-auth
+- **Never** write BQ results or auth tokens to the app's Railway Postgres (or any persistent store) — tokens live in the request/cookie, BQ data is re-queried per request. An `auth_tokens`/`bq_cache` table is the anti-pattern
 - Exchange the one-time code **immediately** on callback — it expires in 60 seconds
 - `?` params are STRING-only — inline non-string values (ints, floats, arrays) with proper escaping
 - Use a 30s timeout on `/query` requests — BigQuery queries on large tables are slow
