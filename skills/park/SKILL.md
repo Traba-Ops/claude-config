@@ -1,15 +1,10 @@
 ---
 name: park
 description: |
-  Save a session's full working context to a durable, human-readable snapshot
-  in a directory you choose (set CLAUDE_PARK_DIR — e.g. an Obsidian vault folder
-  or any synced dir), so it survives the 30-day transcript cleanup and can be
-  revived later (even on another machine) with /unpark.
-  Use when: (1) user invokes /park, (2) user is about to close/abandon a
-  background session and wants to be able to pick it up weeks later,
-  (3) user says "save this context", "park this", "snapshot this session",
-  "I want to be able to come back to this".
-  Companion to /unpark, which searches parked notes AND live sessions.
+  Snapshot this session's working context to a durable note in
+  $CLAUDE_PARK_DIR so it survives transcript cleanup and can be revived with
+  /unpark. Use for /park, "park this", "save/snapshot this context",
+  "I want to come back to this".
 user-invocable: true
 version: 1.2.0
 ---

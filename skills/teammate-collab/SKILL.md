@@ -1,13 +1,9 @@
 ---
 name: teammate-collab
 description: |
-  Coordinate with another operator's Claude when two people are working the
-  same project at once. Use when: (1) the operator says they're co-working,
-  pairing, or collaborating with another teammate, (2) they mention another
-  operator by name in the context of shared work, (3) they share a Slack
-  thread URL and ask you to monitor or post to it.
-  Covers: shared-thread setup, posting style, claim-before-cut, decisions
-  before doing, wait protocol, durable handoff, and what not to post.
+  Coordinate with another operator's Claude on shared work. Use when the
+  operator says they're co-working or pairing, names a teammate on shared
+  work, or shares a Slack thread URL to monitor or post to.
 version: 1.0.0
 ---
 

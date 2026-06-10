@@ -1,13 +1,10 @@
 ---
 name: scheduling
 description: |
-  Set up a task to run on a schedule or repeatedly. Use when the user wants
-  something to happen on a recurring basis or at a later time — "every
-  morning", "each day at 9am", "every hour", "on a cron", "keep checking X",
-  "remind me daily", "run this report weekly", or any recurring job /
-  automation. Decides between a Claude routine (when each run needs Claude's
-  judgment) and a macOS LaunchAgent (when it's deterministic code), and sets
-  up whichever fits.
+  Set up a recurring or scheduled task — "every morning", "on a cron",
+  "remind me daily", "run this report weekly", "keep checking X". Decides
+  between a Claude routine (each run needs judgment) and a macOS LaunchAgent
+  (deterministic code), and sets up whichever fits.
 version: 1.0.0
 ---
 
