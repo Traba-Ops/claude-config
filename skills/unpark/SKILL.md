@@ -1,14 +1,10 @@
 ---
 name: unpark
 description: |
-  One command to pick up where something left off. Searches BOTH live
-  background Claude Code sessions AND parked Obsidian snapshots (from /park),
-  ranks them together, and pulls the winner's context into THIS session so you
-  can continue — resuming an active session or reviving a dead one. Use when:
-  (1) user invokes /unpark, (2) user wants to resume/take over/revive prior
-  work — "pick up the payroll fix", "what was I working on", "revive that
-  session about X", "continue from the deploy session", "load the parked
-  context for Y". Replaces the old /continue-from (which only saw live sessions).
+  Resume or revive prior work: searches live background sessions AND parked
+  snapshots (from /park), ranks them, and loads the winner into this session.
+  Use for /unpark, "pick up X", "what was I working on", "revive/continue
+  that session about X". Replaces /continue-from.
 user-invocable: true
 version: 1.0.0
 ---

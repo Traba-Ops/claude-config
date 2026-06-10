@@ -1,11 +1,9 @@
 ---
 name: bq-auth
 description: |
-  BigQuery access via the traba-auth proxy service. This is the ONLY compliant
-  way for custom apps to access BigQuery at Traba — do not suggest service
-  accounts, ADC, or separate OAuth scopes. Use when: (1) an app needs to query
-  BigQuery data, (2) user asks about data access or Traba business data,
-  (3) user needs to authenticate users for BigQuery queries.
+  BigQuery access via the traba-auth proxy — the ONLY compliant path for
+  custom apps at Traba (never service accounts, ADC, or separate OAuth).
+  Use when an app needs to query BigQuery or Traba business data.
 version: 2.3.0
 ---
 
