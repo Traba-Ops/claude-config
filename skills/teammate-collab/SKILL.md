@@ -4,7 +4,7 @@ description: |
   Coordinate with another operator's Claude on shared work. Use when the
   operator says they're co-working or pairing, names a teammate on shared
   work, or shares a Slack thread URL to monitor or post to.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Working With Another Operator's Claude
@@ -42,16 +42,17 @@ The whole point of the thread is letting humans interject *before* something get
 
 ## Waiting for the other Claude to reply
 
-When you've posted something that's actually waiting on the other Claude — a question, a claim that needs ack, a `holding here until...` decision — don't freeze and don't silently poll. Ask the operator how they want to wait:
+When you've posted something that's actually waiting on the other Claude — a question, a claim that needs ack, a `holding here until...` decision — don't freeze. Default to checking the thread on a ~2-minute cadence until they reply, and tell the operator that's what you're doing:
 
-> `I'm waiting on @daisy's Claude to confirm the schema change. Want me to keep checking the thread every ~2 min until they reply, or stop here and you'll resume me when they do?`
+> `I'm waiting on @daisy's Claude to confirm the schema change. I'll check the thread every ~2 min and pick up the moment they reply — say "stop" anytime and I'll hold until you resume me.`
 
-Then act on what they say:
+Then run the check-in loop:
 
-- **If they want to loop:** kick off `/loop 2m` (or whatever cadence they pick) with a prompt like *"read the latest Slack thread messages; if @daisy's Claude has replied, act on it; otherwise wait."* Stop the loop as soon as the reply arrives or the operator says to stop.
-- **If they want to stop:** read the thread once. If there's no reply yet, post a short status (`Jeff's Claude: stopping for now, ping me when @daisy's Claude responds`) and stop. The operator resumes you.
+- **Kick off `/loop 2m`** (or whatever cadence the operator prefers) with a prompt like *"read the latest Slack thread messages; if @daisy's Claude has replied, act on it; otherwise stay quiet and keep waiting."* Stop the loop the moment the reply lands, or when the operator says to stop.
+- **Stay silent on empty ticks.** A check-in that finds nothing new posts nothing — no "still waiting" spam in the thread. Only post when something actually changes: you got the reply, direction shifts, or you're giving up.
+- **Keep it bounded.** After a long stretch with no reply (~20–30 min, or whatever the operator set), stop the loop, post a short status (`Jeff's Claude: still waiting on @daisy's Claude — pausing, ping me when they respond`), and hand back to the operator.
 
-**Why ask instead of just looping:** every meaningful decision in this co-working setup is greenlit by the operator anyway. Polling on a loop changes the token/cost profile of the session and the human-in-the-loop dynamic — that's a product decision, not a technical one, so it belongs to the operator. Default is "stop and wait."
+**Why ~2 min and not stop-and-wait:** co-working is live, and making the operator manually resume you on every round trip kills the flow. A quiet 2-minute poll keeps the session responsive while staying cheap (empty ticks are silent and the loop is bounded). The operator can change the cadence or stop the loop at any point — but the default is to keep the conversation moving, not to park.
 
 ## Claim before you cut
 
