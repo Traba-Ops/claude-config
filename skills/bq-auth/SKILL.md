@@ -4,7 +4,7 @@ description: |
   BigQuery access via the traba-auth proxy — the ONLY compliant path for
   custom apps at Traba (never service accounts, ADC, or separate OAuth).
   Use when an app needs to query BigQuery or Traba business data.
-version: 2.3.0
+version: 2.4.0
 ---
 
 # BigQuery Auth (traba-auth)
@@ -35,22 +35,21 @@ JWTs expire after 60 minutes. BigQuery credentials are refreshed automatically s
 
 ## Production Setup — Required Before Deploying
 
-traba-auth restricts which apps can use it via two controls that must both be configured before the first deploy. **Send a message in #data on Slack:**
+traba-auth gates which apps may use it with a **single control: your app's origin must be in `ALLOWED_REDIRECT_ORIGINS`.** As of the 2026-06 migration that list is **version-controlled in `porter.yaml`** in the `trabapro/traba-auth` repo (it is no longer a Railway env var), applied with a Porter deploy. **Send a message in #data on Slack:**
 
-> Hey @Charles — deploying `<app-name>` that uses traba-auth for BigQuery. Can you:
->
-> 1. **APPEND** `https://<app-url>.railway.app` (origin only — no trailing slash, no path) to the existing comma-separated `ALLOWED_REDIRECT_ORIGINS` env var on traba-auth. Please don't replace the value — and please paste back the full list after the edit so we can confirm existing entries are still present.
-> 2. Register `https://<app-url>.railway.app` as an authorized redirect URI in the GCP OAuth client used by traba-auth.
+> Hey @Charles — deploying `<app-name>` that uses traba-auth for BigQuery. Can you add `https://<app-origin>` (origin only — no trailing slash, no path) to `ALLOWED_REDIRECT_ORIGINS` in `trabapro/traba-auth` `porter.yaml`, and deploy?
 >
 > App repo: `<repo URL>`
 
-Do not deploy without this — the OAuth redirect will fail silently and `POST /auth/token` will reject the code.
+Do not deploy without this — `/auth/login` returns `{"detail": "redirect_uri not allowed"}` and the flow fails before any token is issued.
+
+**You do _not_ register your app with Google.** Only the proxy's own callback (`https://data-proxy.traba.work/auth/callback`) is a registered OAuth redirect URI — in the `traba-ops` GCP project's client, which app developers never touch. Consumer apps are gated **solely** by `ALLOWED_REDIRECT_ORIGINS`.
 
 ### Coordination gotchas
 
-- **Origin only, no trailing slash, no path.** `https://myapp.railway.app/` (with trailing slash) will not match the runtime origin check and auth will fail. Clients that strip trailing slashes inline can mask this — don't rely on that.
-- **`ALLOWED_REDIRECT_ORIGINS` is comma-separated and easy to accidentally overwrite.** Always ask Charles to paste the full post-edit list so you can confirm other apps' entries are still there.
-- **A redeploy of traba-auth may be required** for env var changes to take effect. If auth still fails 5 minutes after the edit, ask Charles to redeploy traba-auth.
+- **Origin only, no trailing slash, no path.** `https://myapp.example.com/` (with trailing slash) will not match the runtime origin check and auth will fail. Clients that strip trailing slashes inline can mask this — don't rely on that.
+- **`ALLOWED_REDIRECT_ORIGINS` is comma-separated, now in version control.** Because it lives in `porter.yaml`, a PR diff shows the full before/after — far harder to clobber other apps' entries than the old env-var edit. Still: add, don't replace.
+- **The change takes effect on the next Porter deploy** of traba-auth (it builds and rolls a new revision). If auth still fails a few minutes after the deploy, the revision may not have rolled — ping Charles.
 
 ## API
 
