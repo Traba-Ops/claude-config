@@ -39,9 +39,9 @@ Maintain three docs as a byproduct of building, updated inline as things change 
 
 When the operator corrects a business rule, fix SPEC.md right then. The project-setup skill carries the field-by-field structure.
 
-## Recurring Tasks & Workflows
+## Recurring Tasks
 
-If a task runs more than a few times a day, write a script — no LLM cost per run. If less often and it needs judgment each time, a routine/LLM run is fine. High frequency → default to a script, don't ask. **Dynamic workflows** are opt-in and token-heavy — don't start one unless the operator asked. ([reference](../docs/workflows.md))
+If a task runs more than a few times a day, write a script — no LLM cost per run. If less often and it needs judgment each time, a routine/LLM run is fine. High frequency → default to a script, don't ask.
 
 ## Co-Working
 

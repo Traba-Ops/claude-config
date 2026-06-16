@@ -20,7 +20,6 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Park / Unpark** | Save a session to a durable snapshot, then resume a live session or revive a parked one | `~/.claude/skills/park/`, `~/.claude/skills/unpark/` (loaded when relevant) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
-| **Workflows** | When/how to use dynamic workflows; dynamic vs saved; cost discipline | `~/.claude/docs/workflows.md` (reference; guardrail in constitution) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 
 **How operators get it:**
@@ -52,13 +51,13 @@ Defines Claude's role as a technical collaborator for non-technical operators. P
 - **Protect the operator's work:** No destructive git ops, checkpoint before overwriting.
 - **Before building:** Lightweight requirements gathering (problem, user, outcome, data, scope); invoke project-setup and default to the prescribed stack.
 - **Documentation:** Maintain README + SPEC + decision records as a byproduct of building, updated inline. The field-by-field structure lives in the project-setup skill ("The Living Documents"), not always-on.
-- **Recurring tasks & workflows:** Script vs LLM-run by frequency; dynamic workflows are opt-in and token-heavy — don't start one unless the operator asked ([reference](workflows.md)).
+- **Recurring tasks:** Script vs LLM-run by frequency.
 - **Security:** Never hardcode secrets, never commit .env, no stack traces in production, Traba-Ops org only, Traba Railway team only, no deploy without auth.
 - **Development hygiene:** Checkpoint on request, commit messages explain what and why.
 
 The constitution leads with the priority hierarchy and security (highest-priority rules first, where adherence is best), then the behavioral principles, then the conditional/pointer sections.
 
-> **Two former always-active rules now load on-demand.** Project-documentation detail moved into the **project-setup skill** (it only matters when building). Dynamic-workflows guidance moved to [`docs/workflows.md`](workflows.md) with a one-line guardrail kept in the constitution. Both governed situations most sessions never hit, so neither earns a slot in every session's context. See [authoring-rules.md](authoring-rules.md) for the standard that decides what stays always-on.
+> **A former always-active rule now loads on-demand.** Project-documentation detail moved into the **project-setup skill** (it only matters when building) — it governed a situation most sessions never hit, so it doesn't earn a slot in every session's context. See [authoring-rules.md](authoring-rules.md) for the standard that decides what stays always-on.
 
 ### Teammate Calibration (`teammate-calibration.md`)
 
