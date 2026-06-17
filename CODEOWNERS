@@ -1,0 +1,22 @@
+# Merge gating for the shared Claude config.
+#
+# Enable "Require review from Code Owners" in branch protection on `main` for
+# these rules to take effect. A PR needs approval from *one* listed owner —
+# eng OR the relevant team lead.
+
+# Org-wide surface (always-on rules + core skills + install/sync machinery):
+# engineering must approve, since it ships to everyone.
+/rules/        @Traba-Ops/platform
+/skills/       @Traba-Ops/platform
+/docs/         @Traba-Ops/platform
+/install.sh    @Traba-Ops/platform
+/sync.sh       @Traba-Ops/platform
+/CODEOWNERS    @Traba-Ops/platform
+
+# Team skill folders: engineering OR that team's leads can approve.
+# NOTE: the *-leads teams below do not exist in the org yet. Create them
+# (or replace each with individual @usernames) before turning on branch
+# protection, otherwise those lines won't enforce.
+/teams/customer-ops/   @Traba-Ops/platform @Traba-Ops/customer-ops-leads
+/teams/worker-ops/     @Traba-Ops/platform @Traba-Ops/worker-ops-leads
+/teams/scaled-ops/     @Traba-Ops/platform @Traba-Ops/scaled-ops-leads

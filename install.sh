@@ -55,6 +55,11 @@ for src_dir in "$TEMP_DIR"/*/; do
   done
 done
 
+# The dir loop above only copies directories. Copy the sync script (a root
+# file) explicitly so updates can materialize team skills.
+cp "$TEMP_DIR/sync.sh" "$CLAUDE_DIR/sync.sh"
+chmod +x "$CLAUDE_DIR/sync.sh"
+
 # Verify installation
 if [ ! -f "$CLAUDE_DIR/skills/project-setup/SKILL.md" ]; then
   echo "Installation may be incomplete — expected files not found" >&2
@@ -66,8 +71,24 @@ fi
 rm -rf "$CLAUDE_DIR/.git"
 mv "$TEMP_DIR/.git" "$CLAUDE_DIR/.git"
 
+# Ask which team you're on, so the right team skills sync to you.
+# Read from the terminal directly — when run via `curl ... | sh`, stdin is the
+# script itself, not the keyboard.
+if [ ! -f "$CLAUDE_DIR/team" ] && [ -r /dev/tty ]; then
+  echo ""
+  echo "Which team are you on? (customer-ops / worker-ops / scaled-ops)"
+  echo "Leave blank to set later (just tell Claude your team)."
+  printf "Team: "
+  read -r TEAM < /dev/tty || TEAM=""
+  TEAM=$(echo "$TEAM" | tr -d '[:space:]')
+  [ -n "$TEAM" ] && echo "$TEAM" > "$CLAUDE_DIR/team"
+fi
+
+# Materialize core + team skills now.
+bash "$CLAUDE_DIR/sync.sh" || true
+
 echo ""
 echo "Done. Traba skills installed to ~/.claude"
 echo ""
 echo "Next: open Claude and ask it to set up automatic updates:"
-echo '  "Set up a launchd job that runs cd ~/.claude && git pull every hour between 9 AM and 9 PM"'
+echo '  "Set up a launchd job that runs ~/.claude/sync.sh every hour between 9 AM and 9 PM"'

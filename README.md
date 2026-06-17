@@ -31,9 +31,11 @@ Then run the installer:
 curl -fsSL https://raw.githubusercontent.com/Traba-Ops/claude-config/main/install.sh | sh
 ```
 
+The installer asks **which team you're on** (customer-ops / worker-ops / scaled-ops) so you get your team's skills on top of the shared ones. You can leave it blank and set it later — just tell Claude "I'm on customer-ops."
+
 Then open **Claude Code** (either in the terminal or the Code tab in the Claude app) and ask it to set up automatic updates:
 
-> "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
+> "Set up a launchd job that runs `~/.claude/sync.sh` every hour between 9 AM and 9 PM"
 
 That's it. From here, just open Claude Code and start building. Skills update themselves in the background.
 
@@ -49,6 +51,18 @@ Once you install the Prometheus skills, Claude is pre-configured with:
 - **Development hygiene:** your project builds up documentation naturally as you work, making it easy for others to pick up or for engineers to promote later
 - **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
 - **Automatic updates:** as we push improvements, every project gets them automatically
+- **Team skills:** your team's shared skills, on top of the core ones — see below
+
+## Team Skills
+
+Beyond the core skills everyone gets, each team can maintain its own shared
+skills — a standard customer-facing output format, an escalation playbook, naming
+conventions. Edit one once and every teammate picks it up automatically within the
+hour. Think of it like a PowerPoint slide master, for how Claude does your team's work.
+
+- Your team's skills live in [`teams/<your-team>/skills/`](teams/) and sync to you based on your `~/.claude/team` file.
+- To add or change one, ask Claude — it opens a pull request for you (you never touch git). A reviewer (eng or your team lead) merges it, and it's live for the whole team on the next sync.
+- See [`teams/README.md`](teams/README.md) for the full model.
 
 ## Concepts You Should Know
 
