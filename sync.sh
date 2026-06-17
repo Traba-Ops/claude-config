@@ -14,8 +14,9 @@ set -e
 CLAUDE_DIR="$HOME/.claude"
 cd "$CLAUDE_DIR"
 
-# 1. Pull the latest shared config.
-git pull --quiet || { echo "sync: git pull failed" >&2; exit 1; }
+# 1. Pull the latest shared config. --ff-only so a diverged checkout fails
+#    cleanly instead of opening a merge prompt that hangs the launchd job.
+git pull --quiet --ff-only || { echo "sync: git pull failed (diverged checkout?)" >&2; exit 1; }
 
 # 2. Which team are you on? (single team; empty = core only)
 TEAM=""
@@ -37,6 +38,12 @@ if [ -n "$TEAM" ] && [ -d "$CLAUDE_DIR/teams/$TEAM/skills" ]; then
   for skill in "$CLAUDE_DIR/teams/$TEAM/skills"/*/; do
     [ -d "$skill" ] || continue
     name=$(basename "$skill")
+    # Don't clobber a real (non-symlink) core skill of the same name, and don't
+    # let one failed link abort the rest of the sync under `set -e`.
+    if [ -e "$CLAUDE_DIR/skills/$name" ] && [ ! -L "$CLAUDE_DIR/skills/$name" ]; then
+      echo "sync: skipped '$name' — a core skill already uses that name" >&2
+      continue
+    fi
     ln -sfn "../teams/$TEAM/skills/$name" "$CLAUDE_DIR/skills/$name"
     count=$((count + 1))
   done
