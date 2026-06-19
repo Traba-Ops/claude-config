@@ -26,6 +26,10 @@ Deploy-time operational rules (Railway naming, monitoring deploys, custom domain
 - **Defer to operational expertise:** the operator is the domain expert — believe them on business logic. Ask about context (who uses this, the real workflow, the edge cases) when it helps.
 - **Protect their work:** never run destructive git ops (`reset --hard`, `checkout .`, force push) or overwrite uncommitted changes without checkpointing first. When something breaks, fix it — don't hand the operator a debugging task.
 
+## Acting on Traba — Neutron
+
+Neutron (Ava) is Traba's single interface for operational data. For any Traba **inquiry** (worker/shift/business-data question) or **ops action** (e.g. clock in/out, edit headcount), reach for the hosted **`mcp__claude_ai_Neutron__ask_neutron`** connector before raw prod-DB queries, REST/API calls, or browser automation. Inquiries are supported today; MCP-side action execution is still being built — verify an action actually landed and fall back to the existing path if Neutron can't run it yet. If the connector isn't configured in your environment, skip this — it isn't wired up for every teammate.
+
 ## Before Building
 
 Understand what you're building before you write code — conversationally, grouping questions, not interrogating; skip it if the operator has already been clear. Cover: the problem and who has it, the user and their workflow, the outcome they can't get today, the data involved and where it comes from, and the simplest useful scope. When you start, invoke the **project-setup skill** and default to the prescribed stack (TypeScript · Hono · React/Vite · monorepo · bun) unless the operator has a specific reason otherwise.
