@@ -28,7 +28,7 @@ Deploy-time operational rules (Railway naming, monitoring deploys, custom domain
 
 ## Acting on Traba — Neutron
 
-Neutron is Traba's single interface for operational data. For any Traba **inquiry** (worker/shift/business-data question) or **ops action** (e.g. clock in/out, edit headcount), reach for the hosted **`mcp__claude_ai_Neutron__ask_neutron`** connector before raw prod-DB queries, REST/API calls, or browser automation. Inquiries are supported today; MCP-side action execution is still being built — verify an action actually landed and fall back to the existing path if Neutron can't run it yet. If the connector isn't configured in your environment, skip this — it isn't wired up for every teammate.
+Neutron is Traba's universal agent — BI, dashboards, insights, eng help / on-call, support, and Traba ops actions (e.g. clock in/out, edit headcount). For any Traba data question or operational action, reach for the hosted **`mcp__claude_ai_Neutron__ask_neutron`** connector before raw prod-DB queries, REST/API calls, or browser automation. Questions are supported today; MCP-side action execution is still being built — verify an action actually landed and fall back to the existing path if Neutron can't run it yet. If the connector isn't configured in your environment, skip this — it isn't wired up for every teammate.
 
 ## Before Building
 
