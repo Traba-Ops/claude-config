@@ -7,7 +7,7 @@ description: |
   (proposal, dashboard mockup, report) they want to share.
   Covers: Google Drive for static HTML, Railway for full apps, in-app Google
   OAuth, Railway env vars for secrets, Railway Postgres.
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Sharing an App or Page
@@ -71,23 +71,39 @@ When the user wants to share a full app with others, the app needs:
 
 ### Railway Setup for Monorepos
 
-Railway's Nixpacks auto-detection gets confused by monorepo structures with multiple apps. **Always add a `railway.json`** at the repo root to make the build explicit:
+Railway's Nixpacks auto-detection gets confused by monorepo structures with multiple apps. Make the build explicit with **two committed files at the repo root**: a `nixpacks.toml` that pins the toolchain and owns the build phases, and a slim `railway.json` for the builder + restart policy.
+
+**Pin the runtime — `railway.json` alone is not enough.** Before any `railway.json` command runs, Nixpacks runs a nix *setup* phase that installs a default toolchain. For a JS/TS project that default is **Node 18**, which is End-Of-Life and has been removed from current nixpkgs — so the build dies in the setup phase with `Node.js 18.x has reached End-Of-Life and has been removed`, before a single command executes. `railway.json` has no field for the runtime version; this is a Nixpacks concern. Add a `nixpacks.toml` that pins the toolchain (use **`nodejs_22`** — Node 20 is itself near EOL as of mid-2026) and defines the phases explicitly:
+
+```toml
+# Explicit Nixpacks build for a bun monorepo. Without this, Nixpacks falls back to
+# its default Node (18) — EOL and removed from current nixpkgs — and the build fails
+# at the nix setup phase. Pin bun (runs install, build, server) + Node 22 (current
+# LTS; 20 is near EOL mid-2026).
+[phases.setup]
+nixPkgs = ["bun", "nodejs_22"]
+
+[phases.install]
+cmds = ["bun install"]
+
+[phases.build]
+cmds = ["cd apps/web && bun run build"]
+
+[start]
+cmd = "cd apps/api && bun run start"
+```
+
+With phases owned by `nixpacks.toml`, keep `railway.json` to just the builder + restart policy — single source of truth, no duplicated commands:
 
 ```json
 {
   "$schema": "https://railway.com/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "bun install && cd apps/web && bun run build"
-  },
-  "deploy": {
-    "startCommand": "cd apps/api && bun run start",
-    "restartPolicyType": "ON_FAILURE"
-  }
+  "build": { "builder": "NIXPACKS" },
+  "deploy": { "restartPolicyType": "ON_FAILURE", "restartPolicyMaxRetries": 10 }
 }
 ```
 
-This tells Railway exactly what to do: install dependencies, build the frontend, then start the backend.
+Adapt the `cd apps/web && bun run build` / `cd apps/api && bun run start` commands to the repo's actual scripts (a workspace-script setup that maps these to a single `bun run build` / `bun run start` works equally well). Belt-and-suspenders: adding `"engines": { "node": ">=22" }` to the root `package.json` lets any Node-version-aware tooling pick 22 too.
 
 ### Backend Serves the Frontend
 
