@@ -73,13 +73,13 @@ When the user wants to share a full app with others, the app needs:
 
 Railway's Nixpacks auto-detection gets confused by monorepo structures with multiple apps. Make the build explicit with **two committed files at the repo root**: a `nixpacks.toml` that pins the toolchain and owns the build phases, and a slim `railway.json` for the builder + restart policy.
 
-**Pin the runtime — `railway.json` alone is not enough.** Before any `railway.json` command runs, Nixpacks runs a nix *setup* phase that installs a default toolchain. For a JS/TS project that default is **Node 18**, which is End-Of-Life and has been removed from current nixpkgs — so the build dies in the setup phase with `Node.js 18.x has reached End-Of-Life and has been removed`, before a single command executes. `railway.json` has no field for the runtime version; this is a Nixpacks concern. Add a `nixpacks.toml` that pins the toolchain (use **`nodejs_22`** — Node 20 is itself near EOL as of mid-2026) and defines the phases explicitly:
+**Pin the runtime — `railway.json` alone is not enough.** Before any `railway.json` command runs, Nixpacks runs a nix *setup* phase that installs a default toolchain. For a JS/TS project that default is **Node 18**, which is End-Of-Life and has been removed from current nixpkgs — so the build dies in the setup phase with `Node.js 18.x has reached End-Of-Life and has been removed`, before a single command executes. `railway.json` has no field for the runtime version; this is a Nixpacks concern. Add a `nixpacks.toml` that pins the toolchain (use **`nodejs_22`**, the current LTS — Node 20 is already past EOL) and defines the phases explicitly:
 
 ```toml
 # Explicit Nixpacks build for a bun monorepo. Without this, Nixpacks falls back to
 # its default Node (18) — EOL and removed from current nixpkgs — and the build fails
 # at the nix setup phase. Pin bun (runs install, build, server) + Node 22 (current
-# LTS; 20 is near EOL mid-2026).
+# LTS; 20 is already EOL).
 [phases.setup]
 nixPkgs = ["bun", "nodejs_22"]
 
