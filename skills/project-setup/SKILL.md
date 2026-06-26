@@ -121,7 +121,7 @@ When starting a new project:
    ```
 10. Add `"typecheck": "tsgo --noEmit"` to each app's `package.json` scripts
 11. Set up the backend to serve the frontend in production (see deployment skill for details). The backend should serve static files from `../web/dist/` with a SPA catch-all fallback after all API routes.
-12. Add a `railway.json` at the repo root (see deployment skill for the template). This prevents Nixpacks from guessing wrong in the monorepo.
+12. Add a `nixpacks.toml` and a `railway.json` at the repo root (see deployment skill for the templates). `nixpacks.toml` pins the runtime (bun + Node 22) and owns the build phases — without it Nixpacks defaults to an EOL Node and the build fails before any command runs; `railway.json` sets the builder and restart policy.
 13. Create the project documentation skeleton (see "The Living Documents" below for what goes in each):
     - `README.md` — what this does, who uses it, how to run it, how to use it
     - `SPEC.md` — business rules, data model, key workflows, integrations, known limitations
