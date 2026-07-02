@@ -1,0 +1,21 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+infisical-token
+
+# Data (dedupe state, logs)
+*.sqlite
+*.db
+data/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/

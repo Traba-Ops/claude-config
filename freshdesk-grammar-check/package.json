@@ -1,0 +1,19 @@
+{
+  "name": "freshdesk-grammar-check",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Scheduled worker that grammar-checks recent Freshdesk agent replies and alerts on Slack.",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dry-run": "bun run src/index.ts --dry-run",
+    "test": "vitest run",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^6.0.3",
+    "vitest": "^2.1.0"
+  }
+}
