@@ -7,8 +7,9 @@
 // deterministically (scrollIntoView on the newest node), so the blank-frame
 // scroll-follow behavior can't hide content from verification.
 //
-// Env: SET_ID (required), TRIGGER (required), RESUMES (comma-sep phrases, one per
-// pause after the first beat), OUT_DIR (screenshot dir), APP_URL, CDP_URL.
+// Env: SET_ID (required), TRIGGER (required), RESUMES (pipe-separated typed
+// replies, one per pause after the first beat; falls back to AFFIRM), OUT_DIR
+// (screenshot dir), APP_URL, CDP_URL.
 const path = require('path')
 const PW = path.join(require('os').homedir(), '.chrome-cdp-profiles/.pw/node_modules/playwright-core')
 const { chromium } = require(PW)
@@ -44,6 +45,17 @@ async function messageText(page) {
   return (await page.evaluate(() => document.body.innerText))
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+// A question-phrased closer INVITES a typed reply. The rubric forbids the driver
+// from clicking past it (that masks a fall-through to the real agent), so cue
+// phrasing decides type-vs-click — the driver must never switch modes to force a
+// pass. We read the tail of the mounted transcript (the newest cue) to decide.
+function invitesTypedReply(cueTail) {
+  return (
+    /\?["')\]]*\s*$/.test(cueTail) ||
+    /\b(want|would you like|should i|shall i|ready to|can i)\b[^.?!]*\?/i.test(cueTail)
+  )
 }
 
 // Deterministic layout probe: flags content overflow / text clipping / page
@@ -148,9 +160,13 @@ async function settle(page, maxMs) {
     localStorage.removeItem('neo_demo_approval_resolutions')
   }, SET_ID)
 
+  // Fall-through signal = a POST to the REAL agent's chat endpoint. Scope it to
+  // the documented endpoint(s), NOT any /neo/ traffic (session/flags/other APIs
+  // fire during a scripted beat and would falsely truncate the walk).
+  const FALLTHROUGH = /\/neo\/(web-chat-init|chat|message)\b/
   const netPosts = []
   page.on('request', (r) => {
-    if (r.method() === 'POST' && /web-chat-init|\/neo\//.test(r.url())) netPosts.push(r.url())
+    if (r.method() === 'POST' && FALLTHROUGH.test(r.url())) netPosts.push(r.url())
   })
 
   await page.goto(APP + '/chat?newChat=1', { waitUntil: 'domcontentloaded' })
@@ -206,26 +222,39 @@ async function settle(page, maxMs) {
     return null
   }
 
-  // Beat 1 (the trigger). Then auto-advance: click Approve at approval gates,
-  // else send an affirmative at user-prompt gates. Stop at the first backend
-  // POST — that's the script ending (expected) or a mid-script fall-through (bug).
+  // Beat 1 (the trigger). Then auto-advance by CUE, not by button presence: a
+  // question-phrased closer gets a typed reply (per-pause RESUMES phrase, else
+  // AFFIRM); a button-CTA approval gate gets a click. Never click past a typed
+  // cue — that masks a fall-through. Stop at the first real-agent POST — that's
+  // the script ending (expected) or a mid-script fall-through (bug).
   await send(page, TRIGGER)
   await settle(page, 95000)
   await capture('step-1', 'trigger')
 
   for (let step = 2; step <= MAX; step++) {
     const before = netPosts.length
-    const appr = await firstApprove()
-    const action = appr ? 'approve' : 'prompt'
-    if (appr) {
-      await appr.click().catch(() => {})
+    const typed = RESUMES[step - 2] || AFFIRM
+    const cueTail = (await messageText(page)).slice(-600)
+    let action
+    if (invitesTypedReply(cueTail)) {
+      // Cue invites a typed reply — honor it even if an approval button is on
+      // screen, so a question-phrased closer's fall-through can't stay hidden.
+      action = 'type'
+      await send(page, typed)
     } else {
-      await send(page, AFFIRM)
+      const appr = await firstApprove()
+      if (appr) {
+        action = 'approve'
+        await appr.click().catch(() => {})
+      } else {
+        action = 'type'
+        await send(page, typed)
+      }
     }
     await settle(page, 95000)
     await capture(`step-${step}`, action)
     if (netPosts.length > before) {
-      console.log(`STEP ${step}: backend POST after "${action}" — end-of-script / fall-through here.`)
+      console.log(`STEP ${step}: real-agent POST after "${action}" — end-of-script / fall-through here.`)
       break
     }
   }
