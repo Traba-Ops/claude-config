@@ -20,16 +20,10 @@ jobs:
     # also enforces write access at runtime; this gate skips the job entirely for
     # everyone else so drive-by @claude mentions never spin up a runner.
     if: |
-      (
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) ||
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) ||
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
-      ) && (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
-      )
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -47,27 +41,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout PR branch
+      - name: Checkout PR branch (same-repo PRs only)
         if: |
           github.event_name == 'pull_request_review_comment' ||
           github.event_name == 'pull_request_review' ||
           (github.event_name == 'issue_comment' && github.event.issue.pull_request)
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+        # Fork PRs have attacker-controlled trees (CLAUDE.md, .claude/, skills) —
+        # a prompt-injection surface for an agent holding a write token. Stay on
+        # the default branch for those; Claude can still read the diff via gh.
         run: |
-          gh pr checkout ${{ github.event.pull_request.number || github.event.issue.number }}
+          if [ "$(gh pr view "$PR" --json isCrossRepository --jq .isCrossRepository)" = "false" ]; then
+            gh pr checkout "$PR"
+          else
+            echo "Cross-repo (fork) PR — not checking out untrusted head; staying on default branch"
+          fi
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          show_full_output: true
           additional_permissions: |
             actions: read
           claude_args: |
             --model claude-opus-4-7
             --fallback-model claude-sonnet-4-6
             --permission-mode acceptEdits
-            --allowedTools "Bash(git:*),Bash(gh:*),Bash(rg:*),Bash(jq:*),Bash(yq:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(awk:*),Bash(diff:*),Bash(wc:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(cut:*),Bash(xargs:*),Bash(echo:*),Bash(printf:*),Bash(test:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*),Bash(rm:*),Bash(touch:*),Bash(chmod:*),Bash(env:*),Bash(which:*),Task,WebFetch,WebSearch"
+            --allowedTools "Bash(git:*),Bash(gh pr:*),Bash(gh issue:*),Bash(gh run:*),Bash(gh search:*),Bash(rg:*),Bash(jq:*),Bash(yq:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(awk:*),Bash(diff:*),Bash(wc:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(cut:*),Bash(xargs:*),Bash(echo:*),Bash(printf:*),Bash(test:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*),Bash(rm:*),Bash(touch:*),Bash(chmod:*),Bash(env:*),Bash(which:*),Task,WebFetch,WebSearch"
             --append-system-prompt "This is a public repository of Claude Code skills and agent config — never add secrets, tokens, internal URLs, or employee personal data to any file. Follow the conventions of the existing skills when creating or editing one. If a task can't be done cleanly in this CI environment (no credentials, network restrictions), say so in a PR comment rather than half-implementing or silently working around — partial answers are more useful than confidently broken ones."
