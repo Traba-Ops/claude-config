@@ -8,13 +8,14 @@ const PW = path.join(require('os').homedir(), '.chrome-cdp-profiles/.pw/node_mod
 const { chromium } = require(PW)
 
 const APP = process.env.APP_URL || 'http://localhost:4203'
+const APP_HOST = new URL(APP).host // e.g. localhost:4203 — used to find the app tab
 const CDP = process.env.CDP_URL || 'http://localhost:9222'
 
 ;(async () => {
   const browser = await chromium.connectOverCDP(CDP)
   const ctx = browser.contexts()[0]
   const page =
-    ctx.pages().find((p) => p.url().includes('4203')) ||
+    ctx.pages().find((p) => p.url().includes(APP_HOST)) ||
     ctx.pages()[0] ||
     (await ctx.newPage())
   await page.bringToFront()
@@ -28,7 +29,8 @@ const CDP = process.env.CDP_URL || 'http://localhost:9222'
   console.log('URL:', url)
   console.log('STATE:', loggedOut ? 'LOGGED_OUT' : 'LOGGED_IN')
   console.log('PROBE:', body.slice(0, 160))
-  await browser.close()
+  // Don't browser.close() — over CDP that tears down the persistent bot Chrome.
+  // Exiting drops the CDP socket and leaves the logged-in Chrome running for reuse.
   process.exit(loggedOut ? 3 : 0)
 })().catch((e) => {
   console.error('ERR:', e.message)

@@ -16,6 +16,7 @@ const { chromium } = require(PW)
 const fs = require('fs')
 
 const APP = process.env.APP_URL || 'http://localhost:4203'
+const APP_HOST = new URL(APP).host // e.g. localhost:4203 — used to find the app tab
 const CDP = process.env.CDP_URL || 'http://localhost:9222'
 const SET_ID = process.env.SET_ID
 const TRIGGER = process.env.TRIGGER
@@ -47,10 +48,37 @@ async function messageText(page) {
     .trim()
 }
 
+// Text of the NEWEST cue only — the last message block in the transcript, NOT
+// document.body (whose innerText tail is the composer/footer chrome, which would
+// push the closing cue out of view and defeat the $-anchored question test).
+async function newestCueText(page) {
+  return await page.evaluate(() => {
+    // The transcript is the tallest vertical-scroll container; the newest cue is
+    // its last descendant block with real text. Exclude the composer/nav/footer.
+    const scrollers = [...document.querySelectorAll('*')]
+      .filter((e) => {
+        const s = getComputedStyle(e)
+        return e.scrollHeight > e.clientHeight + 40 && /auto|scroll/.test(s.overflowY)
+      })
+      .sort((a, b) => b.scrollHeight - a.scrollHeight)
+    const root = scrollers[0] || document.body
+    const blocks = [...root.querySelectorAll('*')].filter((e) => {
+      if (e.closest('textarea, form, nav, footer, [role="textbox"], [contenteditable]')) return false
+      const t = (e.innerText || '').trim()
+      return t.length > 8 && e.children.length <= 8
+    })
+    const last = blocks[blocks.length - 1]
+    return ((last && last.innerText) || root.innerText || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(-600)
+  })
+}
+
 // A question-phrased closer INVITES a typed reply. The rubric forbids the driver
 // from clicking past it (that masks a fall-through to the real agent), so cue
 // phrasing decides type-vs-click — the driver must never switch modes to force a
-// pass. We read the tail of the mounted transcript (the newest cue) to decide.
+// pass.
 function invitesTypedReply(cueTail) {
   return (
     /\?["')\]]*\s*$/.test(cueTail) ||
@@ -148,7 +176,7 @@ async function settle(page, maxMs) {
 ;(async () => {
   const browser = await chromium.connectOverCDP(CDP)
   const ctx = browser.contexts()[0]
-  const page = ctx.pages().find((p) => p.url().includes('4203')) || (await ctx.newPage())
+  const page = ctx.pages().find((p) => p.url().includes(APP_HOST)) || (await ctx.newPage())
   await page.bringToFront()
 
   // Cold start: demo mode on, set active, wipe prior sessions/approvals.
@@ -173,7 +201,8 @@ async function settle(page, maxMs) {
   await page.waitForTimeout(2500)
   if (/\/login/.test(page.url())) {
     console.log('STATE: LOGGED_OUT — bot profile needs one re-login. Aborting.')
-    await browser.close()
+    // Don't browser.close() — over CDP that tears down the persistent bot Chrome.
+    // Exiting the process drops the CDP socket and leaves Chrome running.
     process.exit(3)
   }
 
@@ -231,10 +260,15 @@ async function settle(page, maxMs) {
   await settle(page, 95000)
   await capture('step-1', 'trigger')
 
-  for (let step = 2; step <= MAX; step++) {
+  // A real-agent POST during the trigger itself is a first-beat fall-through —
+  // stop before the loop so we don't auto-advance past it capturing junk.
+  let fellThrough = netPosts.length > 0
+  if (fellThrough) console.log('STEP 1: real-agent POST during trigger — first-beat fall-through here.')
+
+  for (let step = 2; step <= MAX && !fellThrough; step++) {
     const before = netPosts.length
     const typed = RESUMES[step - 2] || AFFIRM
-    const cueTail = (await messageText(page)).slice(-600)
+    const cueTail = await newestCueText(page)
     let action
     if (invitesTypedReply(cueTail)) {
       // Cue invites a typed reply — honor it even if an approval button is on
@@ -255,12 +289,14 @@ async function settle(page, maxMs) {
     await capture(`step-${step}`, action)
     if (netPosts.length > before) {
       console.log(`STEP ${step}: real-agent POST after "${action}" — end-of-script / fall-through here.`)
+      fellThrough = true
       break
     }
   }
 
   console.log('BACKEND_CHAT_POSTS:', netPosts.length, netPosts.slice(0, 5).join(' '))
-  await browser.close()
+  // Don't browser.close() — over CDP that tears down the persistent bot Chrome.
+  // Exiting drops the CDP socket and leaves the logged-in Chrome running for reuse.
   process.exit(0)
 })().catch((e) => {
   console.error('ERR:', e.message)

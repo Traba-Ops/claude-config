@@ -9,12 +9,19 @@ set -uo pipefail
 
 PW_DIR="$HOME/.chrome-cdp-profiles/.pw"
 PW_MOD="$PW_DIR/node_modules/playwright-core"
-LAUNCHER="$HOME/.claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh"
 
-# 1. Sibling skill that launches the bot Chrome must be installed.
-if [ ! -f "$LAUNCHER" ]; then
-  echo "NEEDS_DEPS — playwright-cdp-drive skill not found at ~/.claude/skills/playwright-cdp-drive."
-  echo "  It ships in the demo-skills zip — unzip ALL folders into ~/.claude/skills, then retry."
+# 1. Sibling skill that launches the bot Chrome must be installed. Search every
+# documented skill root (autopilot Step 1: ~/.claude, ~/.config/claude, project).
+LAUNCHER=""
+for root in "$HOME/.claude/skills" "$HOME/.config/claude/skills" "$PWD/.claude/skills"; do
+  if [ -f "$root/playwright-cdp-drive/launch-chrome-cdp.sh" ]; then
+    LAUNCHER="$root/playwright-cdp-drive/launch-chrome-cdp.sh"
+    break
+  fi
+done
+if [ -z "$LAUNCHER" ]; then
+  echo "NEEDS_DEPS — playwright-cdp-drive skill not found under ~/.claude, ~/.config/claude, or ./.claude skills."
+  echo "  It ships in the demo-skills zip — unzip ALL folders into your skills dir, then retry."
   exit 12
 fi
 

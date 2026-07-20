@@ -169,8 +169,11 @@ time** — no point judging pacing on a demo whose numbers are wrong.
 
 With `playwright-cdp-drive`, walk **every** script trigger and **every** follow-up path. For each
 beat capture: a **screenshot to disk**, a **timestamp** (for pacing), a **DOM snapshot**, and
-**what fires next**. Record a **GIF/video per act**. This transcript is the evidence base for 3c
-and Step 5 — the judges read *it*, never the source (source lies about what actually rendered).
+**what fires next**. For a **per-act recording**, assemble that act's ordered step PNGs into a GIF
+(e.g. `ffmpeg`/ImageMagick, or `ffmpeg` screen capture if you want live video) — Playwright over
+`connectOverCDP` can't record the attached context, so the still sequence *is* the primary artifact.
+This transcript is the evidence base for 3c and Step 5 — the judges read *it*, never the source
+(source lies about what actually rendered).
 
 **Content bugs show in a still frame; interaction/lifecycle bugs do not.** A re-typing text
 block, a missed act-to-act transition, a hang, a silent fall-through to the real agent — none of
@@ -336,7 +339,7 @@ Write the artifacts (so the operator can trust "ready" and spot-check in ~2 minu
 - **`docs/demos/<slug>-verify.md`** — readiness report: every rubric row, its verdict, a pointer
   to its evidence; the low-severity polish backlog.
 - **Numbers worksheet** — every $/%/count claim with its recomputation.
-- **Per-act recordings** — the GIFs/videos from 3b.
+- **Per-act recordings** — the per-act step-PNG sequences from 3b (assembled into GIFs where useful).
 - **Your queue** — the batched Tier-3 calls (loop observations + Fable's product findings), each
   with the reasoning + the relevant frame.
 

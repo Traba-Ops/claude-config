@@ -182,7 +182,7 @@ The reporting protocol differs by mode.
 
 **Non-technical**: use the **Screenshot-First Protocol**:
 
-1. Take a screenshot of the act at a meaningful moment using `mcp__claude-in-chrome__get_screenshot`. Pick the moment where the act lands — typically right after the rich elements have appeared and before approvals.
+1. Take a screenshot of the act at a meaningful moment using `mcp__claude-in-chrome__computer` (`action: screenshot`). Pick the moment where the act lands — typically right after the rich elements have appeared and before approvals.
 2. Read the screenshot back to the user in plain language: "I'm looking at the screen. There's [describe what's visible top to bottom: heading, card 1 + what it shows, card 2, the action buttons, etc.]."
 3. Ask them three specific questions, one at a time via AskUserQuestion:
    - **Pacing**: "Did it feel rushed, calm, or about right?"

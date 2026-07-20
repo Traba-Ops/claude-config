@@ -187,7 +187,7 @@ After writing the draft, share it with the user (mode-aware):
 
 Walk through **all 9 sections in order**, one at a time. For sections 1–8, use the standard pattern. For section 9 (open questions), use the **per-question resolution pattern** described below — those questions need answers, not a "keep / change" gate.
 
-### Standard pattern (Sections 1–7)
+### Standard pattern (Sections 1–8)
 
 For each section, do two things:
 
@@ -242,7 +242,7 @@ If you genuinely can't think of two real alternatives, just offer "Keep" and "En
 
 After each user choice, edit `docs/demos/<slug>.md` in place to reflect the change, then move to the next section. **Don't re-summarize between sections** unless the change cascaded into other sections (e.g., dropping Act 2 may collapse a proactive insight).
 
-When all 8 sections are walked, ask the user explicitly via AskUserQuestion:
+When all 9 sections are walked, ask the user explicitly via AskUserQuestion:
 
 - **Locked in — ready to build** — hand off to building skill.
 - **One more pass** — go through the sections again, only stopping where they want to change something.
