@@ -1,0 +1,73 @@
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # Public repo: only org members/collaborators may trigger. claude-code-action
+    # also enforces write access at runtime; this gate skips the job entirely for
+    # everyone else so drive-by @claude mentions never spin up a runner.
+    if: |
+      (
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) ||
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) ||
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      ) && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read # Required for Claude to read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        # fetch-depth: 0 does a full history+tags fetch that can hang 20+ min on
+        # a throttled runner, so cap it — a hang fails fast and re-runs.
+        timeout-minutes: 10
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PR branch
+        if: |
+          github.event_name == 'pull_request_review_comment' ||
+          github.event_name == 'pull_request_review' ||
+          (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr checkout ${{ github.event.pull_request.number || github.event.issue.number }}
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          additional_permissions: |
+            actions: read
+          claude_args: |
+            --model claude-opus-4-7
+            --fallback-model claude-sonnet-4-6
+            --permission-mode acceptEdits
+            --allowedTools "Bash(git:*),Bash(gh:*),Bash(rg:*),Bash(jq:*),Bash(yq:*),Bash(grep:*),Bash(find:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(sed:*),Bash(awk:*),Bash(diff:*),Bash(wc:*),Bash(sort:*),Bash(uniq:*),Bash(tr:*),Bash(cut:*),Bash(xargs:*),Bash(echo:*),Bash(printf:*),Bash(test:*),Bash(mkdir:*),Bash(mv:*),Bash(cp:*),Bash(rm:*),Bash(touch:*),Bash(chmod:*),Bash(env:*),Bash(which:*),Task,WebFetch,WebSearch"
+            --append-system-prompt "This is a public repository of Claude Code skills and agent config — never add secrets, tokens, internal URLs, or employee personal data to any file. Follow the conventions of the existing skills when creating or editing one. If a task can't be done cleanly in this CI environment (no credentials, network restrictions), say so in a PR comment rather than half-implementing or silently working around — partial answers are more useful than confidently broken ones."
