@@ -23,9 +23,11 @@ fi
 setup_out="$(bash "$HERE/setup.sh")"; setup_code=$?
 if [ "$setup_code" -ne 0 ]; then echo "$setup_out"; exit "$setup_code"; fi
 
-# Keep the launcher's own message (e.g. ":9222 held by a different profile") so
-# unattended preflight can tell fix-the-port from other failures.
-launch_out="$(bash "$HERE/launch-bot-chrome.sh" 2>&1)" || { echo "ERROR — could not launch bot Chrome:"; echo "$launch_out"; exit 1; }
+# Pass the profile + APP through so bot Chrome opens the same URL the JS drivers
+# target (not the hardcoded default). Keep the launcher's own message (e.g.
+# ":9222 held by a different profile") so unattended preflight can tell
+# fix-the-port from other failures.
+launch_out="$(bash "$HERE/launch-bot-chrome.sh" "${BOT_PROFILE:-neo-catalog}" "$APP" 2>&1)" || { echo "ERROR — could not launch bot Chrome:"; echo "$launch_out"; exit 1; }
 sleep 2
 
 node "$HERE/login-health.js"
