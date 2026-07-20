@@ -7,8 +7,15 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-if ! lsof -ti :4203 >/dev/null 2>&1; then
-  echo "NEEDS_SERVER — dev server not up on :4203 (run: pnpm start-dev-neo)"
+# Derive the dev-server port from APP_URL (same var the JS drivers honor), so a
+# non-default host/port isn't falsely reported as NEEDS_SERVER.
+APP="${APP_URL:-http://localhost:4203}"
+_hp="${APP#*://}"; _hp="${_hp%%/*}"          # host[:port]
+APP_PORT="${_hp##*:}"
+[ "$APP_PORT" = "$_hp" ] && APP_PORT=4203     # no explicit port in APP_URL
+
+if ! lsof -ti ":$APP_PORT" >/dev/null 2>&1; then
+  echo "NEEDS_SERVER — dev server not up on :$APP_PORT (run: pnpm start-dev-neo)"
   exit 10
 fi
 
@@ -16,7 +23,9 @@ fi
 setup_out="$(bash "$HERE/setup.sh")"; setup_code=$?
 if [ "$setup_code" -ne 0 ]; then echo "$setup_out"; exit "$setup_code"; fi
 
-bash "$HERE/launch-bot-chrome.sh" >/dev/null 2>&1 || { echo "ERROR — could not launch bot Chrome"; exit 1; }
+# Keep the launcher's own message (e.g. ":9222 held by a different profile") so
+# unattended preflight can tell fix-the-port from other failures.
+launch_out="$(bash "$HERE/launch-bot-chrome.sh" 2>&1)" || { echo "ERROR — could not launch bot Chrome:"; echo "$launch_out"; exit 1; }
 sleep 2
 
 node "$HERE/login-health.js"

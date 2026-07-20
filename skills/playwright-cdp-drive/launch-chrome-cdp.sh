@@ -13,11 +13,16 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 [ -x "$CHROME" ] || { echo "Chrome not found at: $CHROME" >&2; exit 1; }
 mkdir -p "$DIR"
 
-# If something already listens on the port, reuse it.
+# If something already listens on the port, reuse it ONLY if it's THIS profile —
+# attaching to a different --user-data-dir would drive the wrong logged-in session.
 if curl -s "http://localhost:$PORT/json/version" >/dev/null 2>&1; then
-  echo "CDP already up on :$PORT — reusing it."
-  curl -s "http://localhost:$PORT/json/version" | sed 's/,/\n/g' | grep -i browser || true
-  exit 0
+  if pgrep -f -- "--user-data-dir=$DIR" >/dev/null 2>&1; then
+    echo "CDP already up on :$PORT (profile: $DIR) — reusing it."
+    curl -s "http://localhost:$PORT/json/version" | sed 's/,/\n/g' | grep -i browser || true
+    exit 0
+  fi
+  echo "ERR: :$PORT is already in use by a DIFFERENT Chrome (not profile $PROFILE / $DIR). Free the port or pass another port as arg 3." >&2
+  exit 1
 fi
 
 "$CHROME" \
