@@ -8,14 +8,17 @@ PROFILE="${1:-neo-catalog}"
 URL="${2:-http://localhost:4203}"
 PROFILE_DIR="$HOME/.chrome-cdp-profiles/$PROFILE"
 
-# Resolve the playwright-cdp-drive launcher across every documented skill root
-# (autopilot Step 1: ~/.claude, ~/.config/claude, or a project .claude).
+# Resolve the playwright-cdp-drive launcher. The sibling skill is always beside
+# this one, so resolve relative to THIS script first (cwd-independent — preflight
+# may invoke us from browser/); fall back to the documented skill roots.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCHER=""
-for root in "$HOME/.claude/skills" "$HOME/.config/claude/skills" "$PWD/.claude/skills"; do
-  if [ -f "$root/playwright-cdp-drive/launch-chrome-cdp.sh" ]; then
-    LAUNCHER="$root/playwright-cdp-drive/launch-chrome-cdp.sh"
-    break
-  fi
+for cand in \
+  "$SCRIPT_DIR/../../playwright-cdp-drive/launch-chrome-cdp.sh" \
+  "$HOME/.claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh" \
+  "$HOME/.config/claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh" \
+  "$PWD/.claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh"; do
+  if [ -f "$cand" ]; then LAUNCHER="$cand"; break; fi
 done
 
 if curl -sf http://localhost:9222/json/version >/dev/null 2>&1; then

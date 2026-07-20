@@ -10,14 +10,17 @@ set -uo pipefail
 PW_DIR="$HOME/.chrome-cdp-profiles/.pw"
 PW_MOD="$PW_DIR/node_modules/playwright-core"
 
-# 1. Sibling skill that launches the bot Chrome must be installed. Search every
-# documented skill root (autopilot Step 1: ~/.claude, ~/.config/claude, project).
+# 1. Sibling skill that launches the bot Chrome must be installed. It's always
+# beside this one, so resolve relative to THIS script first (cwd-independent —
+# preflight may invoke us from browser/); fall back to the documented skill roots.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCHER=""
-for root in "$HOME/.claude/skills" "$HOME/.config/claude/skills" "$PWD/.claude/skills"; do
-  if [ -f "$root/playwright-cdp-drive/launch-chrome-cdp.sh" ]; then
-    LAUNCHER="$root/playwright-cdp-drive/launch-chrome-cdp.sh"
-    break
-  fi
+for cand in \
+  "$SCRIPT_DIR/../../playwright-cdp-drive/launch-chrome-cdp.sh" \
+  "$HOME/.claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh" \
+  "$HOME/.config/claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh" \
+  "$PWD/.claude/skills/playwright-cdp-drive/launch-chrome-cdp.sh"; do
+  if [ -f "$cand" ]; then LAUNCHER="$cand"; break; fi
 done
 if [ -z "$LAUNCHER" ]; then
   echo "NEEDS_DEPS — playwright-cdp-drive skill not found under ~/.claude, ~/.config/claude, or ./.claude skills."
