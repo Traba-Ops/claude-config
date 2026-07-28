@@ -56,13 +56,19 @@ node ~/.claude/skills/unpark/unpark.mjs "the payroll flaky test fix"
 
 ## Revive lean
 
-The whole point of park/unpark is that the summary replaces the old transcript —
-don't undo that by re-inflating. Work from the handoff note; do NOT re-read the
-files, logs, or query results the old session already digested unless a Next step
-genuinely needs them. Revived sessions measured among the heaviest burners
-(300K+ contexts within hours) precisely because they re-pulled everything the
-note already summarized. Delegate any broad re-investigation (grep sweeps, log
-trawls, transcript reads) to subagents and keep only findings here.
+- **Scope**: applies to a revived parked snapshot (case 3 above) — a live-session
+  resume (case 2) keeps its own read-before-acting guidance.
+- **Work from the note**: act from the handoff's Goal/State/Key decisions/Next
+  steps, not by re-reading files, logs, or query results it already digested —
+  revived sessions have measured among the heaviest burners (300K+ contexts
+  within hours) precisely from re-pulling everything the note already summarized.
+- **Staleness spot-check**: before depending on State/Key decisions, verify they
+  still hold when the note is old or the repo may have moved (e.g. compare the
+  note's branch/HEAD against current), via cheap targeted reads of exactly what
+  you depend on — not a full re-investigation.
+- **Delegate broad re-investigation**: send grep sweeps, log trawls, and
+  transcript reads to subagents and keep only findings here; the targeted
+  spot-checks above are cheap enough to do directly.
 
 ## Notes
 
