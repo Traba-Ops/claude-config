@@ -54,6 +54,16 @@ node ~/.claude/skills/unpark/unpark.mjs "the payroll flaky test fix"
    open the full file at the printed path. cd to that cwd (or open a worktree
    there) before doing repo work — a parked session usually lived elsewhere.
 
+## Revive lean
+
+The whole point of park/unpark is that the summary replaces the old transcript —
+don't undo that by re-inflating. Work from the handoff note; do NOT re-read the
+files, logs, or query results the old session already digested unless a Next step
+genuinely needs them. Revived sessions measured among the heaviest burners
+(300K+ contexts within hours) precisely because they re-pulled everything the
+note already summarized. Delegate any broad re-investigation (grep sweeps, log
+trawls, transcript reads) to subagents and keep only findings here.
+
 ## Notes
 
 - The helper reads only local state + the park dir — no network, no other tools:
