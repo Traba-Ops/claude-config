@@ -11,7 +11,12 @@ always stamp the sender's `userId`.
 
 This guidance governs **the send itself**. It does not apply to prep work around a
 send — reformatting a CSV, drafting message copy, building a recipient list, resolving
-phone numbers. Never block or refuse those tasks on the basis of this rule.
+phone numbers. Never refuse or block prep work merely because the eventual send may use
+the raw API.
+
+One nuance: list-building is exactly where opt-out filtering belongs. If a suppression
+source is available to you, applying it while you build the list is part of doing the
+prep well — not a reason to refuse the prep.
 
 ## Preferred route: the comms broker
 
@@ -34,15 +39,16 @@ attribution is handled for you — you never touch a `userId`.
 
 ## Acceptable route: the raw OpenPhone/Quo API, with attribution stamped
 
-When the broker isn't reachable from your setup (no wired-up tool, no OpsAuth), sending
-via `POST https://api.openphone.com/v1/messages` is fine — established workflows like
-recruiter worker-outreach already run this way. But the raw API has no safety rails of
-its own, so you take on two responsibilities:
+If the broker is wired up in your setup, use it. When it isn't reachable (no wired-up
+tool, no OpsAuth), sending via `POST https://api.openphone.com/v1/messages` is fine. But
+the raw API has none of the broker's safety rails — no opt-out suppression, no dedup, no
+geo-gating, and no Traba-side audit record (the only trace lives in the vendor console) —
+so you carry what you can yourself:
 
-1. **Always pass `userId`** — the acting sender's OpenPhone user id. This is the hard
-   rule. If you omit it, OpenPhone credits the message to the **phone number's owner**,
-   so the moment workspace/number ownership changes, every automated message silently
-   re-attributes to one person.
+1. **Always pass `userId`** — the acting sender's OpenPhone user id. This is the one
+   non-negotiable rule. If you omit it, OpenPhone credits the message to the **phone
+   number's owner**, so the moment workspace/number ownership changes, every automated
+   message silently re-attributes to one person.
 
    > This actually happened: an owner change made **~155K automated hiring messages
    > across 161 numbers** all show as a single person, because the sending apps posted
@@ -52,14 +58,17 @@ its own, so you take on two responsibilities:
    the map). For a fully autonomous bot with no human sender, attribute to a
    **dedicated bot OpenPhone user** — never leave it to the number-owner default.
 
-2. **Honor opt-outs and be deliberate about volume.** The raw API doesn't apply the
-   broker's opt-out suppression, dedup, or geo-gating. Skip recipients known to have
-   opted out, and don't re-blast a list that was already messaged.
+2. **Honor opt-outs and be deliberate about volume.** A strong expectation, not a
+   blocking rule. Skip recipients you know have opted out, and don't re-blast a list
+   that was already messaged. If no suppression source is available to you and the send
+   is a **bulk** one, say so to the user before sending rather than silently proceeding —
+   they may have a list, or may accept the risk. For a one-off message, just send it.
 
 ## Rationale
 
 Every worker message must trace to a real, intentional sender — a recruiter or a named
-bot user — so ownership changes never silently rewrite who "sent" thousands of messages,
-and so opt-outs / compliance / audit apply. The broker guarantees this automatically;
-the raw API can meet the same bar as long as the sender is stamped and opt-outs are
-respected.
+bot user — so ownership changes never silently rewrite who "sent" thousands of messages.
+The broker guarantees that automatically, and layers opt-out suppression, dedup,
+geo-gating, and audit logging on top. The raw path with a stamped `userId` preserves
+**attribution** — it does not replicate those other rails. That's the honest tradeoff,
+and it's why the broker stays the preferred route wherever it's reachable.
