@@ -54,6 +54,22 @@ node ~/.claude/skills/unpark/unpark.mjs "the payroll flaky test fix"
    open the full file at the printed path. cd to that cwd (or open a worktree
    there) before doing repo work — a parked session usually lived elsewhere.
 
+## Revive lean
+
+- **Scope**: applies to a revived parked snapshot (case 3 above) — a live-session
+  resume (case 2) keeps its own read-before-acting guidance.
+- **Work from the note**: act from the handoff's Goal/State/Key decisions/Next
+  steps, not by re-reading files, logs, or query results it already digested —
+  revived sessions have measured among the heaviest burners (300K+ contexts
+  within hours) precisely from re-pulling everything the note already summarized.
+- **Staleness spot-check**: before depending on State/Key decisions, verify they
+  still hold when the note is old or the repo may have moved (e.g. compare the
+  note's branch/HEAD against current), via cheap targeted reads of exactly what
+  you depend on — not a full re-investigation.
+- **Delegate broad re-investigation**: send grep sweeps, log trawls, and
+  transcript reads to subagents and keep only findings here; the targeted
+  spot-checks above are cheap enough to do directly.
+
 ## Notes
 
 - The helper reads only local state + the park dir — no network, no other tools:
