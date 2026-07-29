@@ -28,12 +28,14 @@ The third case is why these exist: Neutron per-record is slow and costs a model 
 
 ## Step 1 — Service account (identity)
 
-Create a GCP service account **in the existing `traba-ops` project**. Never create a new GCP project (see [security.md](../../docs/security.md)); ask a GCP admin to provision it.
+**You don't do this part — an engineer does.** Ask an engineer or GCP admin to create the service account in `traba-ops` and hand you the key; don't go into the GCP console yourself. Everything from Step 2 on is yours.
+
+What to ask for: a service account **in the existing `traba-ops` project**. Never a new GCP project (see [security.md](../../docs/security.md)).
 
 - **Zero IAM roles.** The ID token is self-signed offline — the backend checks only the email-claim domain, never GCP permissions.
 - The three trusted domains are already in `GCP_SERVICE_ACCOUNT_DOMAINS` (`apps/traba-server-node/src/auth/auth.constants.ts`): `traba-ops`, `traba-app`, `traba-dev-app`. A SA in any of them needs **no code change**.
 - A SA outside those projects needs its domain added to that constant **and** mirrored in `auth.constants.spec.ts` (the test fails otherwise) — a PR plus a deploy. Prefer `traba-ops` and skip it.
-- **Key handoff:** Infisical share link (`accessType: "organization"`, `expiresIn: "1d"`), then straight into an env var (Railway/Porter). Never commit the key, never paste it in Slack.
+- **Key handoff:** Infisical share link (`accessType: "organization"`, `expiresIn: "1d"`), then straight into an env var (Railway/Porter). Never commit the key, never paste it in Slack. **Then seal it** — [security.md](../../docs/security.md) scores GCP service-account JSON as **Score 5, Critical: must seal** (Railway has no per-project RBAC, so an unsealed var is readable in plaintext by any team Member). Deploy and confirm the app reads it *before* sealing — sealed values can't be read back — and delete the downloaded key JSON from your machine once it's in.
 
 Trusting a domain trusts *every* service account in that project as `EmployeeRole.Internal`. That's deliberate — the security lives in step 2, not here.
 
@@ -70,14 +72,25 @@ Edit via the Statsig MCP `Update_Dynamic_Config_Entirely` — read-modify-write 
 ```ts
 import { GoogleAuth } from 'google-auth-library'
 
+const AUDIENCE = 'https://ops-prod.traba.tech'
+
 const auth = new GoogleAuth({
   credentials: JSON.parse(process.env.MYAPP_SA_KEY!),
 })
-const client = await auth.getIdTokenClient('https://ops-prod.traba.tech')
-const headers = await client.getRequestHeaders() // { Authorization: 'Bearer <id token>' }
+const client = await auth.getIdTokenClient(AUDIENCE)
+const idToken = await client.idTokenProvider.fetchIdToken(AUDIENCE)
+
+// set the header yourself
+const res = await fetch(`${AUDIENCE}/v1/...`, {
+  headers: { Authorization: `Bearer ${idToken}` },
+})
 ```
 
-The audience is **not** validated server-side (only the email domain is), but pass the real URL anyway. The library refreshes the token automatically — that auto-refresh is the whole point, and what makes this durable where a copied user token dies after an hour.
+**Get the raw token string and set the header yourself.** Don't reach into `client.getRequestHeaders()` and pull off `.Authorization`: it returns a plain object in google-auth-library v9 but a WHATWG `Headers` (lowercase `authorization`) in v10+, so that read is `undefined` on v10 and you silently send `Authorization: undefined` and get a 401 that none of the 403 debugging below explains. `idTokenProvider.fetchIdToken(audience)` returns a `string` and is identical across v9 and v10.
+
+`fetchIdToken` mints a fresh token on every call (no caching), so hold onto the token and re-mint on a timer or on 401 — don't call it per request. Tokens last an hour; that refresh is what makes this durable where a copied user token dies.
+
+The audience is **not** validated server-side (only the email domain is), but pass the real URL anyway.
 
 ---
 
@@ -103,15 +116,15 @@ So a 403 means exactly one of:
 
 **Smoke test after granting:** call the in-scope route with a bogus id → expect **404** (auth and scope passed). Call an out-of-scope route → expect **403** with a scope-violation message.
 
-**Monitoring:** `enforce: false` flips the whole config to monitor mode — violations log `service_account_scope_violation` in Datadog and pass through. There is **no** per-request log of *allowed* routes, so you cannot enumerate what a SA is permitted to call from logs. Source of truth is the config plus the consumer repo (grep it for `ops-prod.traba.tech` / `getIdTokenClient`).
+**Don't expect logs to tell you what a SA *can* call.** Violations log `service_account_scope_violation` in Datadog, but there is **no** per-request log of *allowed* routes. Source of truth is the config plus the consumer repo (grep it for `ops-prod.traba.tech` / `getIdTokenClient`).
+
+## `enforce: false` is a global kill switch — never touch it to fix a 403
+
+`enforce` is one config-wide boolean, not a per-SA setting. Flipping it to `false` turns off the scope gate for **every service account in prod** — every out-of-scope call anywhere just logs a warning and passes through, on the next config read, with no deploy and no review. It is a break-glass switch for an incident, not a debugging step and not a per-SA monitoring mode. A single SA's 403 is fixed by adding the rule (both places — see Step 2), never by disabling the gate.
 
 ## Attribution
 
 Every call logs `actorId = the service account email` — not the human who triggered it. If an action needs per-human attribution (anything a COps person approves), use the impersonation path instead: a Node JWT with an `impersonatedUserEmail` claim via `NODE_SERVICE_TOKEN`.
-
-## Tightening an existing SA without a 403 window
-
-The matcher reads config live but the *code* deploys, so during a rollout old and new pods can disagree. Set **both** `pathPrefix` and `pathPattern` on each rule, deploy, then drop the prefix once the PR is fully rolled out.
 
 ## Prior art
 
