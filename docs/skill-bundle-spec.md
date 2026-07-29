@@ -17,6 +17,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Design system** | Traba UI tokens, components, layout patterns | `~/.claude/skills/traba-design/` (loaded when relevant) |
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
+| **Node backend auth** | GCP service account + route allow-list for `ops-prod.traba.tech` | `~/.claude/skills/ops-backend-auth/` (loaded when relevant) |
 | **Park / Unpark** | Save a session to a durable snapshot, then resume a live session or revive a parked one | `~/.claude/skills/park/`, `~/.claude/skills/unpark/` (loaded when relevant) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
@@ -114,6 +115,12 @@ Single-file skill (~620 lines): critical rules at top, then all tokens, componen
 **Trigger:** User needs to query BigQuery data, access Traba business data, or authenticate users for data access.
 
 Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
+
+### Node Backend Auth
+
+**Trigger:** An app needs to call Traba's node backend (`ops-prod.traba.tech` `@OpsAuth()` endpoints) — live ops data or an ops action — rather than query BigQuery.
+
+The counterpart to bq-auth: bq-auth is the read path for analytics under the user's own OAuth; this is the machine path for an app that calls backend endpoints programmatically. Covers the two-step provisioning (a GCP service account in `traba-ops`, which needs zero IAM roles, plus a per-route entry in the default-deny `service_account_scopes` Statsig config), minting the ID token with `google-auth-library`, verifying a route against `origin/main` before requesting it, and the failure modes — chiefly that a service account classifies as `EmployeeRole.Internal` and short-circuits every route decorator, so a 403 is always a missing allow-list entry, and that a scope change is two edits (`defaultValue` plus the dev-tier rule, which replaces rather than merges).
 
 ### Park / Unpark
 
