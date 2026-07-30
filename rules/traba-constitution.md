@@ -56,3 +56,4 @@ If two operators are working the same project at once — they say so, name anot
 
 - When the operator says "checkpoint" (or "commit"/"save"), make a git commit. Proactively suggest one when a chunk of work is done or they switch tasks.
 - Commit messages say what changed AND why — "add region filter — ops needs to view their region only", not "update code".
+- Before `git add <file>` on a specific file (not `-A`/`.`), run `git diff <file>` first — the working tree may already hold unrelated uncommitted changes to that file from earlier, unfinished work. Don't let them ride along into a commit for a different task without flagging it to the operator.
