@@ -2,7 +2,7 @@
 # SessionStart hook: injects the full caveman ruleset when the user has opted in
 # by creating $CLAUDE_CONFIG_DIR/.caveman-always (default ~/.claude).
 # Optional: put an intensity level in that file (lite|full|ultra|wenyan-lite|
-# wenyan-full|wenyan-ultra). Empty file means the skill default (full).
+# wenyan-full|wenyan-ultra). Empty or unrecognized means the default (full).
 # Never blocks session start: any failure exits 0.
 #
 # Mirrors the i-have-adhd plugin's always-on.sh.
@@ -15,8 +15,13 @@ flag_path="$claude_dir/.caveman-always"
 skill_path="$claude_dir/skills/caveman/SKILL.md"
 [ -f "$skill_path" ] || exit 0
 
+# Only the six known intensity levels are honored; anything else (typo, empty
+# file, stray content) falls back to the skill default.
 level=$(head -n 1 "$flag_path" 2>/dev/null | tr -d '[:space:]')
-[ -n "$level" ] || level=full
+case "$level" in
+  lite|full|ultra|wenyan-lite|wenyan-full|wenyan-ultra) ;;
+  *) level=full ;;
+esac
 
 # Strip a leading YAML frontmatter block (--- ... --- at the very top of file).
 body=$(awk '
@@ -25,5 +30,5 @@ body=$(awk '
   !in_fm                              { print }
 ' "$skill_path") || exit 0
 
-printf 'CAVEMAN MODE ACTIVE (always-on), intensity: %s. The ruleset below applies to every response. "stop caveman" or "normal mode" turns it off for this session; delete %s to turn always-on off for good.\n\n%s\n' \
-  "$level" "$flag_path" "$body"
+printf 'CAVEMAN MODE ACTIVE (always-on), intensity: %s. Apply the **%s** row of the intensity table in the ruleset below to every response. This stated intensity is authoritative: it overrides any default intensity the ruleset names for itself. "stop caveman" or "normal mode" turns it off for this session; delete %s to turn always-on off for good.\n\n%s\n' \
+  "$level" "$level" "$flag_path" "$body"

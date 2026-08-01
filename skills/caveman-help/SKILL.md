@@ -27,9 +27,7 @@ Mode stick until changed or session end.
 
 | Skill | Trigger | What it do |
 |-------|---------|-----------|
-| **caveman-commit** | `/caveman-commit` | Terse commit messages. Conventional Commits. ≤50 char subject. |
-| **caveman-review** | `/caveman-review` | One-line PR comments: `L42: bug: user null. Add guard.` |
-| **caveman-compress** | `/caveman-compress <file>` | Compress .md files to caveman prose. Saves ~46% input tokens. |
+| **caveman** | `/caveman [level]` | The mode itself. Levels above. |
 | **caveman-help** | `/caveman-help` | This card. |
 
 ## Deactivate
@@ -40,23 +38,23 @@ Say "stop caveman" or "normal mode". Resume anytime with `/caveman`.
 
 Keep user's language by default. User write Portuguese → reply Portuguese caveman. Compress the style, not the language. Technical terms, code, commands, commit types, and exact error strings stay verbatim unless user ask for translation.
 
-## Configure Default Mode
+## Always-On
 
-Default mode = `full`. Change it:
+Caveman on by default. One flag file drive it: `~/.claude/.caveman-always`. Line 1 = intensity.
 
-**Environment variable** (highest priority):
+| Want | Do |
+|------|-----|
+| Off for this session | Say "stop caveman" or "normal mode" |
+| Off for good | `rm ~/.claude/.caveman-always` |
+| Different intensity | Write `lite`, `full`, `ultra`, `wenyan-lite`, `wenyan-full`, or `wenyan-ultra` into that file |
+| Back on after deleting | Re-run the installer, or `echo lite > ~/.claude/.caveman-always` |
+
 ```bash
-export CAVEMAN_DEFAULT_MODE=ultra
+echo ultra > ~/.claude/.caveman-always   # change intensity
+rm ~/.claude/.caveman-always             # turn always-on off
 ```
 
-**Config file** (`~/.config/caveman/config.json`):
-```json
-{ "defaultMode": "lite" }
-```
-
-Set `"off"` to disable auto-activation on session start. User can still activate manually with `/caveman`.
-
-Resolution: env var > config file > `full`.
+Unrecognized value in file → falls back to `full`. Custom `CLAUDE_CONFIG_DIR` → flag live there, not `~/.claude`.
 
 ## More
 

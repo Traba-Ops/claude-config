@@ -37,6 +37,8 @@ Then open **Claude Code** (either in the terminal or the Code tab in the Claude 
 
 That's it. From here, just open Claude Code and start building. Skills update themselves in the background.
 
+> **Already installed?** The hourly `git pull` brings you new skill files, but it doesn't run the installer — so anything that needs setup (like caveman output mode, below) stays off until you re-run the curl command above. It's idempotent: safe to run any time, and it leaves your existing settings alone.
+
 > **Note:** The setup prompt above must be run in **Claude Code** — it won't work in the Chat or Co-work tabs of the Claude app.
 
 ## What You Get

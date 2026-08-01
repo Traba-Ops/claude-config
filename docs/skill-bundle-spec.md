@@ -34,7 +34,7 @@ The installer clones the repo, copies skills + rules into `~/.claude/`, and sets
 
 > "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
 
-**How updates propagate:** Engineers commit to the repo. Each operator's launchd job runs `git pull` hourly during working hours, pulling updated skills and rules automatically.
+**How updates propagate:** Engineers commit to the repo. Each operator's launchd job runs `git pull` hourly during working hours, pulling updated skills and rules automatically. `git pull` only moves files — it never runs `install.sh`, so anything that needs installer-side setup (a flag file, a `settings.json` hook registration) stays inert on existing installs until the operator re-runs the curl installer. Ship setup-dependent features with a note telling existing operators to re-run it.
 
 **Caveman output mode (on by default, `lite`):** the installer writes `lite` to `~/.claude/.caveman-always` and registers `hooks/caveman-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the caveman ruleset at the recorded intensity every session. Both steps are idempotent — an operator who already has a flag file or a registered hook keeps their setting on re-install.
 
