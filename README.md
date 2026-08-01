@@ -48,6 +48,7 @@ Once you install the Prometheus skills, Claude is pre-configured with:
 - **Design language:** your app looks and feels like a Traba product from the start
 - **Development hygiene:** your project builds up documentation naturally as you work, making it easy for others to pick up or for engineers to promote later
 - **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
+- **Answers without the padding:** Claude replies in a compressed style — no filler, no hedging, no "Sure! I'd be happy to help" — with the substance intact. Say "stop caveman" to turn it off for a session, or delete `~/.claude/.caveman-always` to turn it off for good. Want it even shorter? Say `/caveman full`.
 - **Automatic updates:** as we push improvements, every project gets them automatically
 
 ## Concepts You Should Know

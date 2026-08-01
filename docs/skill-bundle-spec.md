@@ -22,6 +22,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
+| **Caveman output mode** | Compressed answers — no filler, no hedging, technical substance intact | `~/.claude/skills/caveman/` + `~/.claude/hooks/caveman-always-on.sh`, on by default at `lite` (see below) |
 
 **How operators get it:**
 
@@ -34,6 +35,17 @@ The installer clones the repo, copies skills + rules into `~/.claude/`, and sets
 > "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
 
 **How updates propagate:** Engineers commit to the repo. Each operator's launchd job runs `git pull` hourly during working hours, pulling updated skills and rules automatically.
+
+**Caveman output mode (on by default, `lite`):** the installer writes `lite` to `~/.claude/.caveman-always` and registers `hooks/caveman-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the caveman ruleset at the recorded intensity every session. Both steps are idempotent — an operator who already has a flag file or a registered hook keeps their setting on re-install.
+
+At `lite` the change is tone only: no filler, no hedging, no "Sure! I'd be happy to" — full sentences and articles stay. Code, commits, PRs, security warnings, and destructive-action confirmations are never compressed. Switches:
+
+| Want | Say / do |
+|---|---|
+| Off for this session | "stop caveman" / "normal mode" |
+| Off for good | delete `~/.claude/.caveman-always` |
+| Shorter still | `/caveman full` (or `ultra`), or write that word into the flag file |
+| Full reference | `/caveman-help` |
 
 ---
 

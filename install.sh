@@ -61,6 +61,52 @@ if [ ! -f "$CLAUDE_DIR/skills/project-setup/SKILL.md" ]; then
   exit 1
 fi
 
+# Caveman output mode: default to the lite intensity and register the SessionStart
+# hook that loads it. Both steps are idempotent — an existing choice is left alone.
+chmod +x "$CLAUDE_DIR"/hooks/*.sh 2>/dev/null || true
+
+if [ ! -f "$CLAUDE_DIR/.caveman-always" ]; then
+  echo "lite" > "$CLAUDE_DIR/.caveman-always"
+  echo "  Enabling: caveman output mode (lite)"
+fi
+
+if command -v python3 &> /dev/null; then
+  CLAUDE_DIR="$CLAUDE_DIR" python3 - <<'PY'
+import json, os, pathlib
+
+claude_dir = os.environ["CLAUDE_DIR"]
+settings = pathlib.Path(claude_dir) / "settings.json"
+command = f"{claude_dir}/hooks/caveman-always-on.sh"
+
+try:
+    data = json.loads(settings.read_text())
+except (FileNotFoundError, json.JSONDecodeError):
+    data = {}
+
+session_start = data.setdefault("hooks", {}).setdefault("SessionStart", [])
+already = any(
+    "caveman-always-on.sh" in hook.get("command", "")
+    for entry in session_start
+    for hook in entry.get("hooks", [])
+)
+
+if not already:
+    session_start.append({
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [{
+            "type": "command",
+            "command": command,
+            "timeout": 5,
+            "statusMessage": "Checking caveman always-on flag...",
+        }],
+    })
+    settings.write_text(json.dumps(data, indent=2) + "\n")
+    print("  Registering: caveman SessionStart hook")
+PY
+else
+  echo "  Skipped: caveman hook registration (python3 not found)"
+fi
+
 # Move .git so future updates are just `git pull`
 # Replace if already exists (re-install)
 rm -rf "$CLAUDE_DIR/.git"
