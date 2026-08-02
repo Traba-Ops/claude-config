@@ -19,6 +19,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
 | **Node backend auth** | GCP service account + route allow-list for `ops-prod.traba.tech` | `~/.claude/skills/ops-backend-auth/` (loaded when relevant) |
 | **Park / Unpark** | Save a session to a durable snapshot, then resume a live session or revive a parked one | `~/.claude/skills/park/`, `~/.claude/skills/unpark/` (loaded when relevant) |
+| **Recall** | Search prior session transcripts for what was said, decided, or built | `~/.claude/skills/recall/` (loaded when relevant, or `/recall`) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
@@ -144,6 +145,12 @@ Two complementary skills for context handoff across sessions:
 - **Unpark** bundles a small Node helper (`unpark.mjs`) that reads local Claude Code state — `claude agents --json` for live sessions, each session's `state.json` for goal/status, and the transcript for recent activity — **and** scans the parked snapshots. It ranks both sources against a free-text hint and prints a clean context block so the current session can **resume a live session or revive a dead one** from its parked note. One-way "read and continue"; it does not message or modify the other session.
 
 Replaces the earlier live-only `continue-from` skill. See [Running More Than One Claude](multi-session.md) for the broader multi-session story (background sessions, these skills, and agent teams).
+
+### Recall
+
+**Trigger:** `/recall`, or the user asks "what did we say about X" / "we already discussed this" / another session worked on something and its reasoning isn't in the project docs or git history.
+
+Searches Claude Code session transcripts (`~/.claude/projects/`) for prior decisions and findings, delegated to a subagent so large transcripts don't flood the main conversation. Carries the traps that make naive transcript search fail: excluding the current session (whose restated question otherwise matches itself), reading assistant messages rather than user prompts for the actual findings, and parsing the JSONL structure instead of grepping raw lines. Complements park/unpark: recall answers questions about prior sessions; unpark resumes or revives them.
 
 ### Scheduling
 
