@@ -1,10 +1,10 @@
 ---
-name: design-system
+name: traba-design
 description: |
   Use when building any UI: HTML pages, mockups, prototypes, dashboards, product demos, or front-end code.
   Applies the design system — colors, typography, layout patterns, and component styles.
   Trigger on: HTML, CSS, React, styling, layout, components, mockup, prototype, dashboard, page, UI, frontend.
-version: 3.0.0
+version: 3.1.0
 ---
 
 # Traba Design System
