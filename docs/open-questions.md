@@ -10,18 +10,11 @@
 | 2 | **Database access control:** auth is the gate, not DB-level policies | In-app Google OAuth + Railway private networking is the security boundary. DB-level policies are overkill for internal tools. |
 | 4 | **Claude subscription:** Team plan | Operators start on base, upgrade as needed. |
 | 5 | **Railway reliability:** non-issue | Chosen for DX, not reliability. If an app can't tolerate downtime, it should be Tier 1. |
+| 3 | **Data access layer for Prometheus apps** | In production: the traba-auth proxy (bq-auth skill) for warehouse queries under each user's own OAuth, and allow-listed service accounts (ops-backend-auth skill) for node-backend access. |
 
 ---
 
 ## Open
-
-### 3. Data access layer for Prometheus apps: BigQuery + token store
-
-Standardized BigQuery access for deployed Prometheus apps is a work in progress. Charles Wood is building a token store pattern that uses authenticated user OAuth tokens (from Cloudflare's existing Google SSO) instead of service accounts for BQ queries. Working locally, not yet in production. Goal is to templatize so any Railway app can adopt it.
-
-Until this is ready, operators use workarounds: nightly data pulls to local files, or direct BQ queries with a service account key. See the [eng runbook](eng-runbook.md#optional-detour-data-access-bigquery) for guidance.
-
-**Action:** Follow up with Charles on the token store. Draft a data access skill once the pattern is validated and templatized.
 
 ### 6. Offboarding
 

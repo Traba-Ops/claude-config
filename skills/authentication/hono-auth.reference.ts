@@ -13,9 +13,14 @@ import { SignJWT, jwtVerify } from "jose";
 
 // --- Config ---
 
-const SESSION_SECRET = new TextEncoder().encode(
-  process.env.SESSION_SECRET || "dev-secret"
-);
+if (!process.env.SESSION_SECRET) {
+  // Fail closed: a missing secret must never fall back to a guessable default —
+  // session JWTs signed with a known string are forgeable by anyone.
+  throw new Error(
+    "SESSION_SECRET is not set. Generate one with `openssl rand -hex 32` and set it in .env (local) or Railway (prod)."
+  );
+}
+const SESSION_SECRET = new TextEncoder().encode(process.env.SESSION_SECRET);
 const ALLOWED_DOMAIN = "traba.work";
 const SESSION_DURATION = "7d";
 
