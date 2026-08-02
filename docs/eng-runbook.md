@@ -165,13 +165,12 @@ Once it's deployed and working, if the UI could use some love, have them prompt:
 
 ## Optional Detour: Data Access (BigQuery)
 
-> **Status: TBD.** A standardized data access layer (BigQuery token store) is a work in progress. Until it's ready, there is no official way for Prometheus apps to access Traba production data.
+If the app needs Traba data, there are two sanctioned paths — pick by shape:
 
-**Current workarounds:**
-- **Nightly data pull** to a local file (what cluster-density-map does). Simple, no cost concerns, but data is stale.
-- **Direct BQ queries.** Works but has cost implications. Requires a BQ service account key as a Railway env var.
+- **Analytics / warehouse queries (BigQuery):** the **bq-auth skill**. The app authenticates users through the traba-auth proxy (`data-proxy.traba.work`) and every query runs under the requesting user's own permissions. Your part as the engineer: send the #data message to add the app's origin to `ALLOWED_REDIRECT_ORIGINS` (the skill has the template).
+- **Live ops data or ops actions (node backend):** the **ops-backend-auth skill**. An engineer creates a GCP service account (zero IAM roles) that mints ID tokens for `ops-prod.traba.tech`, gated by a per-route allow-list in the `service_account_scopes` Statsig config.
 
-**What to tell the operator:** If the app needs Traba data, connect them with the data eng team before setting up ad-hoc BQ access.
+**Never provision a BQ service-account key for an app.** Direct service-account access bypasses per-user permissions — it's the pattern traba-auth exists to prevent.
 
 ---
 

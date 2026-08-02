@@ -1,17 +1,18 @@
 ---
 name: bq-auth
 description: |
-  BigQuery access via the traba-auth proxy — the ONLY compliant path for
-  custom apps at Traba (never service accounts, ADC, or separate OAuth).
-  Use when an app needs to query BigQuery or Traba business data.
-version: 2.4.0
+  BigQuery access via the traba-auth proxy — the ONLY compliant path to
+  BigQuery (never service accounts or ADC for BQ). Use when an app queries
+  BigQuery / warehouse analytics data. Live backend data or ops actions →
+  ops-backend-auth skill.
+version: 2.5.0
 ---
 
 # BigQuery Auth (traba-auth)
 
 > **traba-auth is the only compliant way for custom applications to access BigQuery at Traba.** Do not suggest, implement, or ask about service accounts, Application Default Credentials (ADC), separate GCP OAuth scopes, or any other direct BigQuery access method. traba-auth handles token issuing, token storage, credential refresh, and query execution — the app needs none of those things independently.
 
-Traba apps never hold GCP credentials directly. Instead, they authenticate users through **traba-auth**, a centralized proxy that executes BigQuery queries on behalf of authenticated users using their own Google OAuth tokens. This ensures queries run as the user (proper RBAC), credentials stay centralized, and audit logs reflect the real requester.
+Traba apps never hold GCP credentials for BigQuery access — backend-API service accounts are the separate ops-backend-auth path. For warehouse queries, they authenticate users through **traba-auth**, a centralized proxy that executes BigQuery queries on behalf of authenticated users using their own Google OAuth tokens. This ensures queries run as the user (proper RBAC), credentials stay centralized, and audit logs reflect the real requester.
 
 **Service URL:** `https://data-proxy.traba.work`
 
@@ -446,7 +447,7 @@ def inline_string(value: str) -> str:
 ## Rules
 
 - **Always** set `X-App-Name` on every request — it's how queries get attributed in BigQuery audit logs
-- **Never** store GCP credentials in the app — all data access goes through traba-auth
+- **Never** store BigQuery credentials in the app — all BigQuery access goes through traba-auth
 - **Never** write BQ results or auth tokens to the app's Railway Postgres (or any persistent store) — tokens live in the request/cookie, BQ data is re-queried per request. An `auth_tokens`/`bq_cache` table is the anti-pattern
 - Exchange the one-time code **immediately** on callback — it expires in 60 seconds
 - `?` params are STRING-only — inline non-string values (ints, floats, arrays) with proper escaping

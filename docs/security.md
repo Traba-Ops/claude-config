@@ -109,7 +109,7 @@ For projects that eventually need more rigor (high traffic, sensitive data), bra
 | **Billing alerts** | Cloud billing alerts at 50%, 80%, 100% of budget on all accounts. Non-negotiable. |
 | **Railway env var isolation** | Railway has no per-project access control — any team Member can view all env vars. Sensitive values must be sealed (see Layer 7). |
 | **Environment isolation** | Railway projects for citizen dev apps are separate from production infrastructure. Separate Railway projects per app. |
-| **Network isolation** | Citizen-developed apps cannot directly access production data stores. Use the Traba MCP data layer (BigQuery RBAC). |
+| **Network isolation** | Citizen-developed apps cannot directly access production data stores. Data access goes through the sanctioned paths: the traba-auth proxy for BigQuery (bq-auth skill), allow-listed service accounts for the node backend (ops-backend-auth skill). |
 | **No new GCP projects** | Never create a new GCP project. Use the existing `traba-ops` project. Contact a GCP admin to provision service accounts, enable APIs, and grant IAM permissions. |
 
 #### GCP: always use `traba-ops`, never create new projects
@@ -117,7 +117,7 @@ For projects that eventually need more rigor (high traffic, sensitive data), bra
 Creating a new GCP project bypasses org-level billing controls, IAM policies, audit logging, and quota guardrails. It also creates an unmonitored footprint that Traba's security team can't see.
 
 **Rule:** If a feature needs a GCP service (Cloud Storage, Pub/Sub, Cloud Tasks, etc.), open a request to a GCP admin. They will:
-- Create or scope a service account inside `traba-ops` with least-privilege IAM roles
+- Create or scope a service account inside `traba-ops` with the roles the consuming skill specifies (backend-API service accounts need zero IAM roles — see the ops-backend-auth skill)
 - Enable the required APIs on the existing project
 - Provide the service account key or Workload Identity binding
 

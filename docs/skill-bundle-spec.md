@@ -126,7 +126,7 @@ Single-file skill (~620 lines): critical rules at top, then all tokens, componen
 
 **Trigger:** User needs to query BigQuery data, access Traba business data, or authenticate users for data access.
 
-Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. Apps never hold GCP credentials — all BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens.
+Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execution via `POST /query`, Streamlit and TypeScript integration patterns, audit logging via `X-App-Name`, and parameterized query safety rules. All BigQuery access proxies through traba-auth using the authenticated user's own Google OAuth tokens — apps hold no BigQuery credentials.
 
 ### Node Backend Auth
 
