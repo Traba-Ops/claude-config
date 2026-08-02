@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # SessionStart hook: injects the full caveman ruleset when the user has opted in
 # by creating $CLAUDE_CONFIG_DIR/.caveman-always (default ~/.claude).
-# Optional: put an intensity level in that file (lite|full|ultra|wenyan-lite|
-# wenyan-full|wenyan-ultra). Empty or unrecognized means the default (full).
+# Optional: put an intensity level in that file (lite|full|ultra). Empty or
+# unrecognized means the default (full).
 # Never blocks session start: any failure exits 0.
 #
 # Mirrors the i-have-adhd plugin's always-on.sh.
@@ -15,11 +15,11 @@ flag_path="$claude_dir/.caveman-always"
 skill_path="$claude_dir/skills/caveman/SKILL.md"
 [ -f "$skill_path" ] || exit 0
 
-# Only the six known intensity levels are honored; anything else (typo, empty
+# Only the three known intensity levels are honored; anything else (typo, empty
 # file, stray content) falls back to the skill default.
 level=$(head -n 1 "$flag_path" 2>/dev/null | tr -d '[:space:]')
 case "$level" in
-  lite|full|ultra|wenyan-lite|wenyan-full|wenyan-ultra) ;;
+  lite|full|ultra) ;;
   *) level=full ;;
 esac
 
