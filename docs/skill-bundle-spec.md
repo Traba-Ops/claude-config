@@ -18,6 +18,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
 | **Node backend auth** | GCP service account + route allow-list for `ops-prod.traba.tech` | `~/.claude/skills/ops-backend-auth/` (loaded when relevant) |
+| **Compliance check** | Pre-deploy checklist: credentials, warehouse routing, auth coverage, data at rest | `~/.claude/skills/compliance-check/` (loaded when relevant) |
 | **Park / Unpark** | Save a session to a durable snapshot, then resume a live session or revive a parked one | `~/.claude/skills/park/`, `~/.claude/skills/unpark/` (loaded when relevant) |
 | **Recall** | Search prior session transcripts for what was said, decided, or built | `~/.claude/skills/recall/` (loaded when relevant, or `/recall`) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
@@ -134,6 +135,12 @@ Covers the traba-auth proxy service: OAuth login flow, JWT storage, query execut
 **Trigger:** An app needs to call Traba's node backend (`ops-prod.traba.tech` `@OpsAuth()` endpoints) — live ops data or an ops action — rather than query BigQuery.
 
 The counterpart to bq-auth: bq-auth is the read path for analytics under the user's own OAuth; this is the machine path for an app that calls backend endpoints programmatically. Covers the two-step provisioning (a GCP service account in `traba-ops`, which needs zero IAM roles, plus a per-route entry in the default-deny `service_account_scopes` Statsig config), minting the ID token with `google-auth-library`, verifying a route against `origin/main` before requesting it, and the failure modes — chiefly that a service account classifies as `EmployeeRole.Internal` and short-circuits every route decorator, so a 403 is always a missing allow-list entry, and that a scope change is two edits (`defaultValue` plus the dev-tier rule, which replaces rather than merges).
+
+### Compliance Check
+
+**Trigger:** An app is about to be deployed or redeployed, the user asks for a compliance audit of the project, or a project is promoting to Tier 2.
+
+A runnable pre-deploy checklist built around four invariants — secrets never leave the perimeter, data access is always per-user, nothing is reachable without auth, infrastructure stays inside Traba's perimeter. An app-profile preflight (warehouse? node backend? worker comms? database? Vite?) decides which checks apply; each check is tagged **[BLOCKER]** (fix before deploying) or **[advisory]** (report with a recommended fix). Ends with an unauthenticated post-deploy probe of the enumerated data endpoints, a plain-language verdict for the operator, and a compact Slack scorecard that travels with the bq-auth allowlist request. The constitution's no-deploy-without-auth gate and the eng runbook's Step 1 both point here.
 
 ### Park / Unpark
 

@@ -36,11 +36,16 @@ JWTs expire after 60 minutes. BigQuery credentials are refreshed automatically s
 
 ## Production Setup — Required Before Deploying
 
-traba-auth gates which apps may use it with a **single control: your app's origin must be in `ALLOWED_REDIRECT_ORIGINS`.** As of the 2026-06 migration that list is **version-controlled in `porter.yaml`** in the `trabapro/traba-auth` repo (it is no longer a Railway env var), applied with a Porter deploy. **Send a message in #data on Slack:**
+traba-auth gates which apps may use it with a **single control: your app's origin must be in `ALLOWED_REDIRECT_ORIGINS`.** As of the 2026-06 migration that list is **version-controlled in `porter.yaml`** in the `trabapro/traba-auth` repo (it is no longer a Railway env var), applied with a Porter deploy.
+
+Run the **compliance-check skill** first and clear its blockers — the request below carries the result, and it must never be sent with blockers open. Then **send a message in #data on Slack:**
 
 > Hey @Charles — deploying `<app-name>` that uses traba-auth for BigQuery. Can you add `https://<app-origin>` (origin only — no trailing slash, no path) to `ALLOWED_REDIRECT_ORIGINS` in `trabapro/traba-auth` `porter.yaml`, and deploy?
 >
 > App repo: `<repo URL>`
+> Compliance check: CLEAR — scorecard in thread :thread:
+
+Post the compliance scorecard (the compact per-invariant version from the compliance-check skill) as the first reply in the thread, so the audit evidence sits with the request.
 
 Do not deploy without this — `/auth/login` returns `{"detail": "redirect_uri not allowed"}` and the flow fails before any token is issued.
 

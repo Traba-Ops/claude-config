@@ -7,7 +7,7 @@ description: |
   (proposal, dashboard mockup, report) they want to share.
   Covers: Google Drive for static HTML, Railway for full apps, in-app Google
   OAuth, Railway env vars for secrets, Railway Postgres.
-version: 1.3.0
+version: 1.4.0
 ---
 
 # Sharing an App or Page
@@ -54,6 +54,8 @@ If you're unsure, ask: "does this page need to talk to a database or call an API
 ---
 
 # Deploying a Shared App
+
+**Before deploying, run the compliance-check skill** — a pre-deploy checklist covering committed credentials, warehouse-access routing, auth coverage, and data-at-rest violations. Fix its blockers before continuing here, and re-run it before redeploying after significant changes.
 
 When the user wants to share a full app with others, the app needs:
 1. A hosted backend and/or frontend
