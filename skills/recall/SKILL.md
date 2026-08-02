@@ -30,8 +30,8 @@ Different cwd → different project dir → different transcripts. A session sta
 ## Search pattern that works
 
 ```bash
-# 1. Find candidate files matching a phrase
-grep -rEl 'phrase or regex' ~/.claude/projects/
+# 1. Find candidate files matching a phrase (-i: transcripts mix cases freely)
+grep -rEil 'phrase or regex' ~/.claude/projects/
 
 # 2. Order candidates by recency
 ls -lt ~/.claude/projects/<dir>/*.jsonl
@@ -51,7 +51,7 @@ for line in open('<path>'):
         text = content if isinstance(content, str) else ''.join(
             c.get('text', '') for c in content if isinstance(c, dict) and c.get('type') == 'text'
         )
-        if 'TARGET_PHRASE' in text.lower():
+        if 'target phrase' in text.lower():  # needle must be lowercase — it's compared against lowered text
             print(f'--- {role} ---'); print(text[:2000]); print()
     except: pass
 "
@@ -63,7 +63,7 @@ A search subagent often surfaces the **current** session's transcript as the mat
 
 Brief the subagent explicitly to avoid this:
 
-- Identify the current session's transcript — `~/.claude/projects/<encoded-cwd>/$CLAUDE_CODE_SESSION_ID.jsonl` — and **exclude it** from the search. (Fall back to most-recent mtime only if the env var is unset.)
+- Identify the current session's transcripts and **exclude them** — both `~/.claude/projects/<encoded-cwd>/$CLAUDE_CODE_SESSION_ID.jsonl` and its subagent transcripts under `.../$CLAUDE_CODE_SESSION_ID/subagents/`. (If the env var is unset, fall back to excluding the most recently modified transcript — imperfect when parallel sessions share the project dir, so verify every candidate is genuinely a different session.)
 - Verify any candidate by reading the *assistant* messages in that session — the substantive findings live there, not in a user prompt that describes them retrospectively.
 - Search broadly across cwds and dates, not just the most recent file.
 
