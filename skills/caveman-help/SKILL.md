@@ -1,5 +1,6 @@
 ---
 name: caveman-help
+version: 1.1.0
 description: >
   Quick-reference card for all caveman modes, skills, and commands.
   One-shot display, not a persistent mode. Trigger: /caveman-help,
@@ -16,10 +17,7 @@ Display this reference card when invoked. One-shot — do NOT change mode, write
 |------|---------|-------------|
 | **Lite** | `/caveman lite` | Drop filler. Keep sentence structure. |
 | **Full** | `/caveman` | Drop articles, filler, pleasantries, hedging. Fragments OK. Default. |
-| **Ultra** | `/caveman ultra` | Extreme compression. Bare fragments. Tables over prose. |
-| **Wenyan-Lite** | `/caveman wenyan-lite` | Classical Chinese style, light compression. |
-| **Wenyan-Full** | `/caveman wenyan` | Full 文言文. Maximum classical terseness. |
-| **Wenyan-Ultra** | `/caveman wenyan-ultra` | Extreme. Ancient scholar on a budget. |
+| **Ultra** | `/caveman ultra` | Extreme compression. Bare fragments. |
 
 Mode stick until changed or session end.
 
@@ -46,7 +44,7 @@ Caveman on by default. One flag file drive it: `~/.claude/.caveman-always`. Line
 |------|-----|
 | Off for this session | Say "stop caveman" or "normal mode" |
 | Off for good | `rm ~/.claude/.caveman-always` |
-| Different intensity | Write `lite`, `full`, `ultra`, `wenyan-lite`, `wenyan-full`, or `wenyan-ultra` into that file |
+| Different intensity | Write `lite`, `full`, or `ultra` into that file |
 | Back on after deleting | Re-run the installer, or `echo lite > ~/.claude/.caveman-always` |
 
 ```bash
