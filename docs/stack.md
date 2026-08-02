@@ -56,7 +56,7 @@ The project-setup skill handles this so new projects get the right toolchain aut
 
 ## Language: TypeScript by Default
 
-**TypeScript for everything unless the use case requires a Python-specific library.** Both languages have excellent AI-generated code quality, but TypeScript is the default because the entire stack (bun, Hono, React, Vite, Prisma) is TypeScript. Using one language across frontend, backend, and shared types eliminates context-switching and lets `packages/shared/` work seamlessly.
+**TypeScript for everything unless the use case requires a Python-specific library.** Both languages have excellent AI-generated code quality, but TypeScript is the default because the entire stack (bun, Hono, React, Vite, Prisma) is TypeScript. Using one language across frontend, backend, and shared types eliminates context-switching and lets `apps/shared/` work seamlessly.
 
 **When to use Python:** Only when the project requires a library that doesn't exist in the TypeScript ecosystem — primarily ML/data science (pandas, numpy, scikit-learn, torch) or wrapping a Python-only API. If you're unsure, use TypeScript.
 
@@ -101,7 +101,6 @@ my-project/
   apps/
     web/          # React + Vite (built and served by api/)
     api/          # Hono backend → Railway
-  packages/
     shared/       # Shared types, schemas, constants
   package.json    # bun workspace root
 ```
@@ -110,7 +109,7 @@ my-project/
 
 **Why always monorepo:** Consistent structure across all Prometheus projects. Claude scaffolds the same layout every time. If a backend-only project needs a frontend later, the structure is already there.
 
-**Type sharing:** Export `.ts` files directly from `packages/shared/` (live types). No build step for internal packages — the consuming app's bundler handles transpilation. Use `workspace:*` protocol for internal dependencies.
+**Type sharing:** Export `.ts` files directly from `apps/shared/` (live types). No build step for internal packages — the consuming app's bundler handles transpilation. Use `workspace:*` protocol for internal dependencies.
 
 **Deployment from a monorepo:** Everything deploys to Railway as a single service. The backend builds the frontend and serves it as static files. This avoids Nixpacks auto-detection confusion in monorepos (Railway can't tell which app to build when it sees multiple `package.json` files). A `railway.json` at the repo root makes the build/start commands explicit. Even frontend-only projects use Railway with a minimal static file server.
 

@@ -98,7 +98,7 @@ Reads the repo to detect what tier the project is at:
 
 **Frontend:** React + Vite. Styling via CSS custom properties from the design system (no MUI, no styled-components). TanStack React Query + React Context for state. React Router DOM for routing. Vitest for testing.
 
-**Monorepo:** Every project uses bun workspaces with `apps/web/`, `apps/api/`, `packages/shared/`. Shared types via live `.ts` exports (no build step for internal packages).
+**Monorepo:** Every project uses bun workspaces with `apps/web/`, `apps/api/`, `apps/shared/`. Shared types via live `.ts` exports (no build step for internal packages).
 
 Includes `.gitignore` and `.pre-commit-config.yaml` as reference files — Claude creates these during scaffolding.
 

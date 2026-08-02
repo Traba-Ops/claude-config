@@ -15,7 +15,7 @@ Add Google OAuth login restricted to `@traba.work` accounts. The frontend handle
 
 ### Project structure check
 
-Authentication requires the prescribed monorepo structure from the project setup skill: `apps/web/` (React + Vite frontend), `apps/api/` (Hono backend), and `packages/shared/`. The backend must exist — auth middleware and token verification run server-side in Hono.
+Authentication requires the prescribed monorepo structure from the project setup skill: `apps/web/` (React + Vite frontend), `apps/api/` (Hono backend), and `apps/shared/`. The backend must exist — auth middleware and token verification run server-side in Hono.
 
 Before adding auth, check the project structure. If it doesn't match:
 1. Tell the operator the project needs to be restructured first to support authentication
