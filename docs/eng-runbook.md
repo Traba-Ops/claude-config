@@ -23,7 +23,7 @@ Have a quick chat, but wear your PM hat. Don't just confirm it's a real tool. Tr
 - **Who's going to use it?** Just them, their team, cross-functional?
 - **Can they demo it?** Ask them to run it locally and show you. If it doesn't run, it's not ready to deploy.
 - **Does it need any API keys?** If it needs an LLM, we prefer Gemini for cost effectiveness — ask Jeff or Moreno for a key.
-- **Ask for the compliance scorecard.** The operator's Claude runs the **compliance-check skill** (part of the bundle) and produces a per-invariant scorecard. Review it before investing deploy time: open blockers mean it's not ready, and the advisories tell you where to look during your review.
+- **Ask for the pre-flight scorecard.** The operator's Claude runs the **preflight-check skill** (part of the bundle) and produces a per-invariant scorecard. Review it before investing deploy time: open blockers mean it's not ready, and the advisories tell you where to look during your review.
 
 ---
 

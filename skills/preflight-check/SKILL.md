@@ -1,5 +1,5 @@
 ---
-name: compliance-check
+name: preflight-check
 description: |
   Pre-deploy compliance checklist for Prometheus projects. Use when: (1) an app is about to be
   deployed or redeployed, (2) user asks to audit or check the project for compliance,
@@ -7,7 +7,7 @@ description: |
 version: 1.0.0
 ---
 
-# Compliance Check
+# Pre-Flight Check
 
 Four invariants every deployed Prometheus tool must hold:
 
@@ -166,7 +166,7 @@ Anything serving data or secrets unauthenticated: treat as a blocker — fix bef
 Report to the operator in plain language:
 
 ```
-Compliance check — <project> — <date>
+Pre-flight check — <project> — <date>
 
 Blockers: <none, or each with file:line and the fix>
 Advisories: <each with a recommended fix>
@@ -179,7 +179,7 @@ If blocked: fix the blockers, re-run the failed checks, report again.
 For Slack (the bq-auth allowlist request, or any thread where the app's compliance is the question), condense to a scorecard — one line per invariant, advisories counted:
 
 ```
-Compliance check — <app> — <date> — *CLEAR*
+Pre-flight check — <app> — <date> — *CLEAR*
 :white_check_mark: secrets: clean (tree + history + bundle)
 :white_check_mark: data access: traba-auth only, nothing at rest
 :white_check_mark: auth: all data routes gated, verified live
