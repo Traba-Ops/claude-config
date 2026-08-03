@@ -55,7 +55,7 @@ If you're unsure, ask: "does this page need to talk to a database or call an API
 
 # Deploying a Shared App
 
-**Before deploying, run the preflight-check skill** — a pre-deploy checklist covering committed credentials, warehouse-access routing, auth coverage, and data-at-rest violations. Fix its blockers before continuing here, and re-run it before redeploying after significant changes.
+**Before deploying, run the deploy-preflight-check skill** — a pre-deploy checklist covering committed credentials, warehouse-access routing, auth coverage, and data-at-rest violations. Fix its blockers before continuing here, and re-run it before redeploying after significant changes.
 
 When the user wants to share a full app with others, the app needs:
 1. A hosted backend and/or frontend

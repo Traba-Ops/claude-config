@@ -9,7 +9,7 @@ Deploy-time compliance rules were scattered: the constitution carried a few alwa
 
 ## Decision
 
-Ship a `preflight-check` skill: a runnable pre-deploy checklist built around four invariants (secrets never leave the perimeter; data access is always per-user; nothing is reachable without auth; infrastructure stays inside Traba's perimeter), with an app-profile preflight deciding which checks apply and every check tagged **[BLOCKER]** or **[advisory]**. The constitution keeps a one-line gate ("never deploy without … a clean compliance check"); the detail lives in the skill.
+Ship a `deploy-preflight-check` skill: a runnable pre-deploy checklist built around four invariants (secrets never leave the perimeter; data access is always per-user; nothing is reachable without auth; infrastructure stays inside Traba's perimeter), with an app-profile preflight deciding which checks apply and every check tagged **[BLOCKER]** or **[advisory]**. The constitution keeps a one-line gate ("never deploy without … a clean compliance check"); the detail lives in the skill.
 
 ## Why
 

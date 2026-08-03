@@ -1,5 +1,5 @@
 ---
-name: preflight-check
+name: deploy-preflight-check
 description: |
   Pre-deploy compliance checklist for Prometheus projects. Use when: (1) an app is about to be
   deployed or redeployed, (2) user asks to audit or check the project for compliance,

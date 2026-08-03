@@ -18,7 +18,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Authentication** | Google OAuth, session JWTs, domain restriction | `~/.claude/skills/authentication/` (loaded when relevant) |
 | **BigQuery auth** | traba-auth proxy, OAuth flow, query patterns | `~/.claude/skills/bq-auth/` |
 | **Node backend auth** | GCP service account + route allow-list for `ops-prod.traba.tech` | `~/.claude/skills/ops-backend-auth/` (loaded when relevant) |
-| **Pre-flight check** | Pre-deploy checklist: credentials, warehouse routing, auth coverage, data at rest | `~/.claude/skills/preflight-check/` (loaded when relevant) |
+| **Pre-flight check** | Pre-deploy checklist: credentials, warehouse routing, auth coverage, data at rest | `~/.claude/skills/deploy-preflight-check/` (loaded when relevant) |
 | **Park / Unpark** | Save a session to a durable snapshot, then resume a live session or revive a parked one | `~/.claude/skills/park/`, `~/.claude/skills/unpark/` (loaded when relevant) |
 | **Recall** | Search prior session transcripts for what was said, decided, or built | `~/.claude/skills/recall/` (loaded when relevant, or `/recall`) |
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
