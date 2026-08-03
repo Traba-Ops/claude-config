@@ -160,12 +160,14 @@ After the deploy is live, probe unauthenticated — read-only GETs only:
 2. Vite apps: fetch the built bundles and scan them with the same pattern set as the history check. Bundle filenames are hashed and `curl` doesn't expand remote globs — enumerate the paths from the served page first:
 
 ```bash
-for js in $(curl -s https://<app>/ | grep -oE '/assets/[^"]+\.js' | sort -u); do
+paths=$(curl -s https://<app>/ | grep -oE '/assets/[^"]+\.js' | sort -u)
+[ -n "$paths" ] || echo "NO BUNDLES FOUND — wrong URL, deploy not ready, or assets served elsewhere"
+for js in $paths; do
   curl -s "https://<app>$js"
 done | grep -oE "sk-ant-[A-Za-z0-9_-]+|sk-proj-|sk_live_|pk_live_|ghp_[A-Za-z0-9]{36}|github_pat_|xox[baprs]-|AIza[0-9A-Za-z_-]{35}|postgres(ql)?://[^:]+:[^@]+@[^\"']+"
 ```
 
-Anything found traces back to a `VITE_` leak.
+An empty enumeration is a **failed scan, not a clean one** — resolve why no bundles were found and re-run before reporting this check as passed. Anything the grep finds traces back to a `VITE_` leak.
 
 Anything serving data or secrets unauthenticated: treat as a blocker — fix before announcing the app.
 
