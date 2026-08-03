@@ -115,7 +115,7 @@ The template-literal hits are candidates, not verdicts: trace each interpolated 
 
 **[BLOCKER] The right auth pattern is present, with its markers.** Absence of bypass strings is not auth — verify the scaffolding exists:
 
-- **Warehouse app** → login through traba-auth (bq-auth skill). Required markers: redirect to `$TRABA_AUTH_URL/auth/login`, code exchange at `/auth/token`, per-request validation via `/auth/me`, Bearer token on `/query`. Plus: the production origin is in `ALLOWED_REDIRECT_ORIGINS` **before** deploy — the bq-auth skill has the request template (and see the scorecard below).
+- **Warehouse app** → login through traba-auth (bq-auth skill). Required markers: redirect to `$TRABA_AUTH_URL/auth/login`, code exchange at `/auth/token`, Bearer token on `/query`, and — only when a backend receives tokens from a client — per-request validation via `/auth/me` (apps holding the JWT server-side, like Streamlit session state or an httpOnly cookie, validate implicitly through `/query` 401 handling). The production origin must be in `ALLOWED_REDIRECT_ORIGINS` before the app goes live, but the allowlist request is sent **after** this check comes back CLEAR — the scorecard rides it (bq-auth has the template) — so an origin not yet allowlisted is the expected state here, not a blocker.
 - **Everything else** → in-app Google OAuth (authentication skill). Required markers: `@react-oauth/google` on the frontend, server-side verification with `hd === "traba.work"`, `jose`-signed session JWTs, `SESSION_SECRET` from env.
 
 Missing markers for the profile's pattern = blocker.
@@ -157,7 +157,15 @@ Every hit is a send and must carry `userId` in the payload. Broker sends (`/comm
 After the deploy is live, probe unauthenticated — read-only GETs only:
 
 1. Take the route list from invariant 3 and hit **each data endpoint** without credentials — expect 401/403 on every one. A 200 on the app root proves nothing (the SPA shell is public by design); the data endpoints are the test.
-2. Vite apps: fetch the built bundle and scan it with the same pattern set as the history check — `curl -s https://<app>/assets/*.js | grep -oE "sk-ant-[A-Za-z0-9_-]+|sk-proj-|sk_live_|pk_live_|ghp_[A-Za-z0-9]{36}|github_pat_|xox[baprs]-|AIza[0-9A-Za-z_-]{35}|postgres(ql)?://[^:]+:[^@]+@[^\"']+" — anything found traces back to a `VITE_` leak.
+2. Vite apps: fetch the built bundles and scan them with the same pattern set as the history check. Bundle filenames are hashed and `curl` doesn't expand remote globs — enumerate the paths from the served page first:
+
+```bash
+for js in $(curl -s https://<app>/ | grep -oE '/assets/[^"]+\.js' | sort -u); do
+  curl -s "https://<app>$js"
+done | grep -oE "sk-ant-[A-Za-z0-9_-]+|sk-proj-|sk_live_|pk_live_|ghp_[A-Za-z0-9]{36}|github_pat_|xox[baprs]-|AIza[0-9A-Za-z_-]{35}|postgres(ql)?://[^:]+:[^@]+@[^\"']+"
+```
+
+Anything found traces back to a `VITE_` leak.
 
 Anything serving data or secrets unauthenticated: treat as a blocker — fix before announcing the app.
 
@@ -182,7 +190,7 @@ For Slack (the bq-auth allowlist request, or any thread where the app's complian
 Pre-flight check — <app> — <date> — *CLEAR*
 :white_check_mark: secrets: clean (tree + history + bundle)
 :white_check_mark: data access: traba-auth only, nothing at rest
-:white_check_mark: auth: all data routes gated, verified live
+:white_check_mark: auth: all data routes gated (live probe runs post-deploy)
 :white_check_mark: infra: Traba-Ops repo, Traba Railway
 :warning: advisories: <n> (<short labels>)
 ```
