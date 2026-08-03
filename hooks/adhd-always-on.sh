@@ -27,5 +27,9 @@ body=$(awk '
   !in_fm                              { print }
 ' "$skill_path") || exit 0
 
-printf 'ADHD MODE ACTIVE (always-on). The ruleset below applies to every response. "stop adhd mode" turns it off for this session; delete %s to turn always-on off for good.\n\n%s\n' \
+printf 'ADHD MODE ACTIVE (always-on). The ruleset below applies to every response. "stop adhd mode" turns it off for this session; delete %s to turn always-on off (re-running the installer turns it back on).\n\n%s\n' \
   "$flag_path" "$body"
+
+# printf is the last command, so without this the hook would exit non-zero on a
+# write error — contradicting the "never fails" contract above.
+exit 0

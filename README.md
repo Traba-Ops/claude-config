@@ -51,7 +51,7 @@ Once you install the Prometheus skills, Claude is pre-configured with:
 - **Development hygiene:** your project builds up documentation naturally as you work, making it easy for others to pick up or for engineers to promote later
 - **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
 - **Auto mode by default:** Claude acts on what you ask instead of stopping to ask permission at every step. Press Shift+Tab mid-session to cycle modes if you want it to slow down and confirm things. (If you've already picked a mode yourself, the installer leaves it alone.)
-- **Answers shaped to be acted on:** Claude leads with the next action, numbers multi-step work, restates where things stand, and skips the tangents — no filler, no "Sure! I'd be happy to help." Say "stop adhd mode" to turn it off for a session, or delete `~/.claude/.i-have-adhd-always` to turn it off for good.
+- **Answers shaped to be acted on:** Claude leads with the next action, numbers multi-step work, restates where things stand, and skips the tangents — no filler, no "Sure! I'd be happy to help." Say "stop adhd mode" to turn it off for a session, or delete `~/.claude/.i-have-adhd-always` to turn it off for every session. Re-running the installer turns it back on.
 - **Automatic updates:** as we push improvements, every project gets them automatically
 
 ## Concepts You Should Know

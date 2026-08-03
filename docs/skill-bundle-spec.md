@@ -39,14 +39,14 @@ The installer clones the repo, copies skills + rules into `~/.claude/`, and sets
 
 **Auto mode (the default permission mode):** the installer sets `permissions.defaultMode: "auto"` in `~/.claude/settings.json` so Claude acts on a request instead of stopping for permission at every step — matching what the onboarding runbook's bootstrap does for new operators. Idempotent, and it never overrides a choice: if `defaultMode` is already set to anything, that value stays. Operators cycle modes mid-session with Shift+Tab.
 
-**ADHD output mode (on by default):** the installer creates the empty flag file `~/.claude/.i-have-adhd-always` and registers `hooks/adhd-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the ruleset every session. Both steps are idempotent — an operator who already has a flag file or a registered hook keeps their setting on re-install.
+**ADHD output mode (on by default):** the installer creates the empty flag file `~/.claude/.i-have-adhd-always` and registers `hooks/adhd-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the ruleset every session. Both steps are idempotent, but "on by default" is literal: the installer recreates an absent flag file, so an operator who opted out by deleting it is opted back in on the next installer run. (The hourly `git pull` doesn't run the installer, so an opt-out holds until the operator re-runs the curl command themselves.) An existing flag file or registered hook is left alone.
 
 The skill is vendored from the [i-have-adhd](https://github.com/ayghri/i-have-adhd) plugin (MIT, license kept at `skills/i-have-adhd/LICENSE`) rather than installed per person, so hourly `git pull` keeps it current. What changes: the next action leads, multi-step work gets numbered, state is restated across turns, tangents are suppressed. Code, commits, PRs, security warnings, and destructive-action confirmations are untouched. Switches:
 
 | Want | Say / do |
 |---|---|
 | Off for this session | "stop adhd mode" |
-| Off for good | delete `~/.claude/.i-have-adhd-always` |
+| Off for every session | delete `~/.claude/.i-have-adhd-always` — until the next installer run, which recreates it |
 | Back on | re-run the installer, or `touch ~/.claude/.i-have-adhd-always` |
 | One-off invoke | `/i-have-adhd` |
 
