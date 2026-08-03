@@ -39,6 +39,23 @@ if ! git clone --quiet "$REPO" "$TEMP_DIR"; then
   exit 1
 fi
 
+# Remove bundle files this version no longer ships. The previous install's git
+# index lists exactly what the bundle put in ~/.claude, so anything tracked there
+# and absent from the fresh clone is retired. An operator's own files are never
+# tracked, so they are never touched. Without this, a retired hook script would
+# survive re-install and keep firing (or, once the hourly `git pull` deletes it,
+# leave its settings.json registration pointing at nothing).
+if [ -d "$CLAUDE_DIR/.git" ]; then
+  for tracked in $(git -C "$CLAUDE_DIR" ls-files 2>/dev/null); do
+    if [ ! -e "$TEMP_DIR/$tracked" ] && [ -e "$CLAUDE_DIR/$tracked" ]; then
+      rm -f "$CLAUDE_DIR/$tracked"
+      echo "  Removing: $tracked (no longer part of the bundle)"
+    fi
+  done
+  # Clean up any directory the removals left empty. rmdir skips non-empty ones.
+  rmdir "$CLAUDE_DIR"/*/*/ "$CLAUDE_DIR"/*/ 2>/dev/null || true
+fi
+
 # Copy all directories into ~/.claude
 for src_dir in "$TEMP_DIR"/*/; do
   dir_name=$(basename "$src_dir")
@@ -61,14 +78,14 @@ if [ ! -f "$CLAUDE_DIR/skills/project-setup/SKILL.md" ]; then
   exit 1
 fi
 
-# Caveman output mode: default to the lite intensity and register the SessionStart
-# hook that loads it. The settings.json pass below also sets auto as the default
-# permission mode. Every step is idempotent — an existing choice is left alone.
+# ADHD output mode: opt everyone in and register the SessionStart hook that loads
+# it. The settings.json pass below also sets auto as the default permission mode.
+# Every step is idempotent — an existing choice is left alone.
 chmod +x "$CLAUDE_DIR"/hooks/*.sh 2>/dev/null || true
 
-if [ ! -f "$CLAUDE_DIR/.caveman-always" ]; then
-  echo "lite" > "$CLAUDE_DIR/.caveman-always"
-  echo "  Enabling: caveman output mode (lite)"
+if [ ! -f "$CLAUDE_DIR/.i-have-adhd-always" ]; then
+  : > "$CLAUDE_DIR/.i-have-adhd-always"
+  echo "  Enabling: ADHD output mode"
 fi
 
 if command -v python3 &> /dev/null; then
@@ -79,15 +96,16 @@ import json, os, pathlib, shutil, tempfile
 
 claude_dir = os.environ["CLAUDE_DIR"]
 settings = pathlib.Path(claude_dir) / "settings.json"
-command = f"{claude_dir}/hooks/caveman-always-on.sh"
+hooks_dir = f"{claude_dir}/hooks/"
+command = f"{hooks_dir}adhd-always-on.sh"
 
 
 class Skip(Exception):
     """Configuration cannot proceed; explain and leave settings.json alone."""
 
 
-def register_caveman_hook(data):
-    """Add the caveman SessionStart hook. True if `data` was changed."""
+def session_start_hooks(data):
+    """The SessionStart entries in `data`, validated."""
     hooks = data.get("hooks", {})
     if not isinstance(hooks, dict):
         raise Skip(f'"hooks" in {settings} is not an object')
@@ -95,6 +113,19 @@ def register_caveman_hook(data):
     session_start = hooks.get("SessionStart", [])
     if not isinstance(session_start, list):
         raise Skip(f'"hooks.SessionStart" in {settings} is not a list')
+
+    return session_start
+
+
+def set_session_start_hooks(data, session_start):
+    hooks = dict(data.get("hooks", {}))
+    hooks["SessionStart"] = session_start
+    data["hooks"] = hooks
+
+
+def register_adhd_hook(data):
+    """Add the ADHD SessionStart hook. True if `data` was changed."""
+    session_start = session_start_hooks(data)
 
     for entry in session_start:
         if not isinstance(entry, dict):
@@ -105,7 +136,7 @@ def register_caveman_hook(data):
         for hook in entry_hooks:
             if not isinstance(hook, dict):
                 continue
-            if "caveman-always-on.sh" in str(hook.get("command", "")):
+            if "adhd-always-on.sh" in str(hook.get("command", "")):
                 return False  # already registered
 
     session_start = list(session_start) + [{
@@ -114,13 +145,59 @@ def register_caveman_hook(data):
             "type": "command",
             "command": command,
             "timeout": 5,
-            "statusMessage": "Checking caveman always-on flag...",
+            "statusMessage": "Checking ADHD always-on flag...",
         }],
     }]
-    hooks = dict(hooks)
-    hooks["SessionStart"] = session_start
-    data["hooks"] = hooks
+    set_session_start_hooks(data, session_start)
     return True
+
+
+def prune_missing_bundle_hooks(data):
+    """Drop SessionStart hooks pointing at a bundle script that no longer exists.
+
+    A retired hook script disappears from ~/.claude on the next `git pull`, but
+    its registration in settings.json doesn't — leaving every session start to
+    fail on a missing command. Only scripts under the bundle's own hooks
+    directory are considered, and only when the file is actually gone, so an
+    operator's own hooks are never touched. True if `data` was changed.
+    """
+    session_start = session_start_hooks(data)
+    changed = False
+    kept_entries = []
+
+    for entry in session_start:
+        if not isinstance(entry, dict):
+            kept_entries.append(entry)
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            kept_entries.append(entry)
+            continue
+
+        kept_hooks = []
+        for hook in entry_hooks:
+            script = ""
+            if isinstance(hook, dict):
+                script = str(hook.get("command", "")).strip().strip('"')
+            if (
+                script.startswith(hooks_dir)
+                and script != command
+                and not os.path.exists(script)
+            ):
+                changed = True
+                continue
+            kept_hooks.append(hook)
+
+        if not kept_hooks:
+            changed = True
+            continue
+        entry = dict(entry)
+        entry["hooks"] = kept_hooks
+        kept_entries.append(entry)
+
+    if changed:
+        set_session_start_hooks(data, kept_entries)
+    return changed
 
 
 def set_auto_permission_mode(data):
@@ -167,8 +244,10 @@ def configure():
             raise Skip(f"{settings} is not a JSON object")
 
     changes = []
-    if register_caveman_hook(data):
-        changes.append("  Registering: caveman SessionStart hook")
+    if prune_missing_bundle_hooks(data):
+        changes.append("  Cleaning up: SessionStart hooks for retired bundle scripts")
+    if register_adhd_hook(data):
+        changes.append("  Registering: ADHD SessionStart hook")
     if set_auto_permission_mode(data):
         changes.append("  Setting: auto as the default permission mode")
 
@@ -204,17 +283,17 @@ def configure():
 try:
     configure()
 except Skip as exc:
-    print("  WARNING: the caveman SessionStart hook and auto mode could not be")
+    print("  WARNING: the ADHD SessionStart hook and auto mode could not be")
     print(f"           set up: {exc}.")
     print("           Nothing was changed. Fix that file and re-run this installer,")
-    print('           or say "/caveman" for caveman and Shift+Tab for auto mode.')
+    print('           or say "/i-have-adhd" for ADHD mode and Shift+Tab for auto mode.')
 except Exception as exc:  # never let this step break the install
     print(f"  WARNING: settings.json setup failed ({exc}).")
-    print("           Nothing was changed. The skills are installed; say \"/caveman\"")
-    print("           for caveman and cycle to auto mode with Shift+Tab.")
+    print('           Nothing was changed. The skills are installed; say "/i-have-adhd"')
+    print("           for ADHD mode and cycle to auto mode with Shift+Tab.")
 PY
 else
-  echo "  Skipped: caveman hook + auto mode setup (python3 not found)"
+  echo "  Skipped: ADHD hook + auto mode setup (python3 not found)"
 fi
 
 # Move .git so future updates are just `git pull`
