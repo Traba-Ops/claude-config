@@ -37,7 +37,7 @@ Then open **Claude Code** (either in the terminal or the Code tab in the Claude 
 
 That's it. From here, just open Claude Code and start building. Skills update themselves in the background.
 
-> **Already installed?** The hourly `git pull` brings you new skill files, but it doesn't run the installer — so anything that needs setup (like caveman output mode, below) stays off until you re-run the curl command above. It's idempotent: safe to run any time, and it leaves your existing settings alone.
+> **Already installed?** The hourly `git pull` brings you new skill files, but it doesn't run the installer — so anything that needs setup (like auto mode or caveman output mode, below) stays off until you re-run the curl command above. It's idempotent: safe to run any time, and it leaves your existing settings alone.
 
 > **Note:** The setup prompt above must be run in **Claude Code** — it won't work in the Chat or Co-work tabs of the Claude app.
 
@@ -50,6 +50,7 @@ Once you install the Prometheus skills, Claude is pre-configured with:
 - **Design language:** your app looks and feels like a Traba product from the start
 - **Development hygiene:** your project builds up documentation naturally as you work, making it easy for others to pick up or for engineers to promote later
 - **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
+- **Auto mode by default:** Claude acts on what you ask instead of stopping to ask permission at every step. Press Shift+Tab mid-session to cycle modes if you want it to slow down and confirm things. (If you've already picked a mode yourself, the installer leaves it alone.)
 - **Answers without the padding:** Claude replies in a compressed style — no filler, no hedging, no "Sure! I'd be happy to help" — with the substance intact. Say "stop caveman" to turn it off for a session, or delete `~/.claude/.caveman-always` to turn it off for good. Want it even shorter? Say `/caveman full`.
 - **Automatic updates:** as we push improvements, every project gets them automatically
 

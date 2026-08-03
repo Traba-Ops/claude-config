@@ -62,7 +62,8 @@ if [ ! -f "$CLAUDE_DIR/skills/project-setup/SKILL.md" ]; then
 fi
 
 # Caveman output mode: default to the lite intensity and register the SessionStart
-# hook that loads it. Both steps are idempotent — an existing choice is left alone.
+# hook that loads it. The settings.json pass below also sets auto as the default
+# permission mode. Every step is idempotent — an existing choice is left alone.
 chmod +x "$CLAUDE_DIR"/hooks/*.sh 2>/dev/null || true
 
 if [ ! -f "$CLAUDE_DIR/.caveman-always" ]; then
@@ -82,10 +83,67 @@ command = f"{claude_dir}/hooks/caveman-always-on.sh"
 
 
 class Skip(Exception):
-    """Registration cannot proceed; explain and leave settings.json alone."""
+    """Configuration cannot proceed; explain and leave settings.json alone."""
 
 
-def register():
+def register_caveman_hook(data):
+    """Add the caveman SessionStart hook. True if `data` was changed."""
+    hooks = data.get("hooks", {})
+    if not isinstance(hooks, dict):
+        raise Skip(f'"hooks" in {settings} is not an object')
+
+    session_start = hooks.get("SessionStart", [])
+    if not isinstance(session_start, list):
+        raise Skip(f'"hooks.SessionStart" in {settings} is not a list')
+
+    for entry in session_start:
+        if not isinstance(entry, dict):
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            continue
+        for hook in entry_hooks:
+            if not isinstance(hook, dict):
+                continue
+            if "caveman-always-on.sh" in str(hook.get("command", "")):
+                return False  # already registered
+
+    session_start = list(session_start) + [{
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [{
+            "type": "command",
+            "command": command,
+            "timeout": 5,
+            "statusMessage": "Checking caveman always-on flag...",
+        }],
+    }]
+    hooks = dict(hooks)
+    hooks["SessionStart"] = session_start
+    data["hooks"] = hooks
+    return True
+
+
+def set_auto_permission_mode(data):
+    """Default new sessions to auto mode. True if `data` was changed.
+
+    Auto mode is what makes Claude act on a request instead of stopping for
+    permission at every step — the fleet default the onboarding runbook sets up.
+    An operator who has already chosen a mode keeps it.
+    """
+    permissions = data.get("permissions", {})
+    if not isinstance(permissions, dict):
+        raise Skip(f'"permissions" in {settings} is not an object')
+
+    if "defaultMode" in permissions:
+        return False  # operator already chose — never override
+
+    permissions = dict(permissions)
+    permissions["defaultMode"] = "auto"
+    data["permissions"] = permissions
+    return True
+
+
+def configure():
     # Read. A missing file is fine (we create one); anything unreadable or
     # unparseable is not — we never overwrite a settings.json we can't parse.
     try:
@@ -108,38 +166,14 @@ def register():
         if not isinstance(data, dict):
             raise Skip(f"{settings} is not a JSON object")
 
-    hooks = data.get("hooks", {})
-    if not isinstance(hooks, dict):
-        raise Skip(f'"hooks" in {settings} is not an object')
+    changes = []
+    if register_caveman_hook(data):
+        changes.append("  Registering: caveman SessionStart hook")
+    if set_auto_permission_mode(data):
+        changes.append("  Setting: auto as the default permission mode")
 
-    session_start = hooks.get("SessionStart", [])
-    if not isinstance(session_start, list):
-        raise Skip(f'"hooks.SessionStart" in {settings} is not a list')
-
-    for entry in session_start:
-        if not isinstance(entry, dict):
-            continue
-        entry_hooks = entry.get("hooks")
-        if not isinstance(entry_hooks, list):
-            continue
-        for hook in entry_hooks:
-            if not isinstance(hook, dict):
-                continue
-            if "caveman-always-on.sh" in str(hook.get("command", "")):
-                return  # already registered — idempotent, nothing to do
-
-    session_start = list(session_start) + [{
-        "matcher": "startup|resume|clear|compact",
-        "hooks": [{
-            "type": "command",
-            "command": command,
-            "timeout": 5,
-            "statusMessage": "Checking caveman always-on flag...",
-        }],
-    }]
-    hooks = dict(hooks)
-    hooks["SessionStart"] = session_start
-    data["hooks"] = hooks
+    if not changes:
+        return  # everything already in place — idempotent, nothing to write
 
     # Back up the previous file, then write atomically via a temp file in the
     # same directory so an interrupt can't leave a half-written settings.json.
@@ -163,22 +197,24 @@ def register():
             os.unlink(tmp_name)
         raise Skip(f"{settings} could not be written ({exc.strerror})")
 
-    print("  Registering: caveman SessionStart hook")
+    for line in changes:
+        print(line)
 
 
 try:
-    register()
+    configure()
 except Skip as exc:
-    print("  WARNING: caveman is installed, but its SessionStart hook could not be")
-    print(f"           registered: {exc}.")
+    print("  WARNING: the caveman SessionStart hook and auto mode could not be")
+    print(f"           set up: {exc}.")
     print("           Nothing was changed. Fix that file and re-run this installer,")
-    print('           or just say "/caveman" in a session to turn it on manually.')
+    print('           or say "/caveman" for caveman and Shift+Tab for auto mode.')
 except Exception as exc:  # never let this step break the install
-    print(f"  WARNING: caveman SessionStart hook registration failed ({exc}).")
-    print('           Nothing was changed. Caveman is installed; say "/caveman" to use it.')
+    print(f"  WARNING: settings.json setup failed ({exc}).")
+    print("           Nothing was changed. The skills are installed; say \"/caveman\"")
+    print("           for caveman and cycle to auto mode with Shift+Tab.")
 PY
 else
-  echo "  Skipped: caveman hook registration (python3 not found)"
+  echo "  Skipped: caveman hook + auto mode setup (python3 not found)"
 fi
 
 # Move .git so future updates are just `git pull`
