@@ -24,7 +24,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Scheduling** | Pick + set up a Claude routine vs a macOS LaunchAgent for recurring tasks | `~/.claude/skills/scheduling/` (loaded when relevant) |
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
-| **Caveman output mode** | Compressed answers — no filler, no hedging, technical substance intact | `~/.claude/skills/caveman/` + `~/.claude/hooks/caveman-always-on.sh`, on by default at `lite` (see below) |
+| **ADHD output mode** | Answers shaped to be acted on — next action first, numbered steps, no tangents | `~/.claude/skills/i-have-adhd/` + `~/.claude/hooks/adhd-always-on.sh`, on by default (see below) |
 
 **How operators get it:**
 
@@ -38,16 +38,18 @@ The installer clones the repo, copies skills + rules into `~/.claude/`, and sets
 
 **How updates propagate:** Engineers commit to the repo. Each operator's launchd job runs `git pull` hourly during working hours, pulling updated skills and rules automatically. `git pull` only moves files — it never runs `install.sh`, so anything that needs installer-side setup (a flag file, a `settings.json` hook registration) stays inert on existing installs until the operator re-runs the curl installer. Ship setup-dependent features with a note telling existing operators to re-run it.
 
-**Caveman output mode (on by default, `lite`):** the installer writes `lite` to `~/.claude/.caveman-always` and registers `hooks/caveman-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the caveman ruleset at the recorded intensity every session. Both steps are idempotent — an operator who already has a flag file or a registered hook keeps their setting on re-install.
+**Auto mode (the default permission mode):** the installer sets `permissions.defaultMode: "auto"` in `~/.claude/settings.json` so Claude acts on a request instead of stopping for permission at every step — matching what the onboarding runbook's bootstrap does for new operators. Idempotent, and it never overrides a choice: if `defaultMode` is already set to anything, that value stays. Operators cycle modes mid-session with Shift+Tab.
 
-At `lite` the change is tone only: no filler, no hedging, no "Sure! I'd be happy to" — full sentences and articles stay. Code, commits, PRs, security warnings, and destructive-action confirmations are never compressed. Switches:
+**ADHD output mode (on by default):** the installer creates the empty flag file `~/.claude/.i-have-adhd-always` and registers `hooks/adhd-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the ruleset every session. Both steps are idempotent, but "on by default" is literal: the installer recreates an absent flag file, so an operator who opted out by deleting it is opted back in on the next installer run. (The hourly `git pull` doesn't run the installer, so an opt-out holds until the operator re-runs the curl command themselves.) An existing flag file or registered hook is left alone.
+
+The skill is vendored from the [i-have-adhd](https://github.com/ayghri/i-have-adhd) plugin (MIT, license kept at `skills/i-have-adhd/LICENSE`) rather than installed per person, so hourly `git pull` keeps it current. What changes: the next action leads, multi-step work gets numbered, state is restated across turns, tangents are suppressed. Code, commits, PRs, security warnings, and destructive-action confirmations are untouched. Switches:
 
 | Want | Say / do |
 |---|---|
-| Off for this session | "stop caveman" / "normal mode" |
-| Off for good | delete `~/.claude/.caveman-always` |
-| Shorter still | `/caveman full` (or `ultra`), or write that word into the flag file |
-| Full reference | `/caveman-help` |
+| Off for this session | "stop adhd mode" |
+| Off for every session | delete `~/.claude/.i-have-adhd-always` — until the next installer run, which recreates it |
+| Back on | re-run the installer, or `touch ~/.claude/.i-have-adhd-always` |
+| One-off invoke | `/i-have-adhd` |
 
 ---
 
