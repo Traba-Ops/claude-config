@@ -229,12 +229,29 @@ out=$(run_hook "$gate" "$(pretool_payload "")")
 case "$out" in *'"deny"'*) r=0 ;; *) r=1 ;; esac
 check "e2e: Write denied after a build-shaped prompt" $r
 
-# Exactly what skills/pm-check/SKILL.md tells the agent to run.
-( . "$envfile" && touch "$CLAUDE_PM_CHECK_DONE" )
+# Exactly what skills/pm-check/SKILL.md tells the agent to run, verbatim.
+skill_touch() { # runs with whatever env the caller sets
+  touch "${CLAUDE_PM_CHECK_DONE:-${TMPDIR:-/tmp}/claude-pm-check-$CLAUDE_CODE_SESSION_ID.done}"
+}
+( . "$envfile" && TMPDIR="$state" CLAUDE_CODE_SESSION_ID=ignored skill_touch )
 check "e2e: the SKILL.md command resolves and runs" $?
 out=$(run_hook "$gate" "$(pretool_payload "")")
 [ -z "$out" ]
 check "e2e: Write allowed after the skill records completion" $?
+
+# The fallback branch: no SessionStart hook ran (hooks installed mid-session), so
+# the skill builds the path from CLAUDE_CODE_SESSION_ID instead. Verified above
+# against a live Claude Code run that this variable equals the hook's session_id.
+fresh e2
+run_hook "$detect" "$(prompt_payload "build a slack bot for daily recaps")" >/dev/null
+out=$(run_hook "$gate" "$(pretool_payload "")")
+[ -n "$out" ]
+check "e2e fallback: Write denied with no env file" $?
+( unset CLAUDE_PM_CHECK_DONE; TMPDIR="$state" CLAUDE_CODE_SESSION_ID="$SID" skill_touch )
+check "e2e fallback: the SKILL.md command works off CLAUDE_CODE_SESSION_ID" $?
+out=$(run_hook "$gate" "$(pretool_payload "")")
+[ -z "$out" ]
+check "e2e fallback: Write allowed after the fallback touch" $?
 
 echo "install.sh settings pass"
 
@@ -313,6 +330,57 @@ check "prune keeps an operator hook that is a real file" $? "count=$n"
 n=$(prune_fixture gone 'true')
 [ "$n" -eq 0 ]
 check "prune drops a registration whose script is genuinely absent" $? "count=$n"
+
+grep -q "Removing: hook for a retired bundle script" "$work/configure.out"
+check "a pruned registration is named in the output" $? "$(cat "$work/configure.out")"
+
+# settings.json symlinked into a dotfiles checkout — stow/chezmoi/by hand. The
+# write must follow the link, not replace it: replacing it orphans the operator's
+# real file silently, and puts the .bak in the wrong directory too.
+sym="$work/symlink"
+rm -rf "$sym"
+mkdir -p "$sym/dotfiles" "$sym/claude/hooks"
+printf '{"env":{"KEEP":"me"}}' > "$sym/dotfiles/settings.json"
+ln -s "$sym/dotfiles/settings.json" "$sym/claude/settings.json"
+CLAUDE_DIR="$sym/claude" python3 "$py" >"$work/configure.out" 2>&1
+[ -L "$sym/claude/settings.json" ]
+check "a symlinked settings.json is still a symlink after the write" $? \
+  "$(cat "$work/configure.out")"
+python3 - "$sym/dotfiles/settings.json" <<'CHECK'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["env"]["KEEP"] == "me", "the operator's own keys were dropped"
+assert "hooks" in d, "the dotfiles file never received the registrations"
+CHECK
+check "the write lands in the dotfiles file, preserving its contents" $? \
+  "$(cat "$work/configure.out")"
+[ -f "$sym/dotfiles/settings.json.bak" ]
+check "the .bak lands next to the real file, not next to the symlink" $?
+
+# Substring matching used to see these as "already registered" and skip the real
+# registration forever, while still printing success.
+decoy="$work/decoy"
+rm -rf "$decoy"
+mkdir -p "$decoy/hooks/other"
+: > "$decoy/hooks/other/my-pm-check-gate.sh"
+printf '{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"%s/hooks/other/my-pm-check-gate.sh"}]}],"UserPromptSubmit":[{"hooks":[{"type":"command","command":"logger --tag pm-check-detect.sh"}]}]}}' \
+  "$decoy" > "$decoy/settings.json"
+CLAUDE_DIR="$decoy" python3 "$py" >"$work/configure.out" 2>&1
+python3 - "$decoy/settings.json" "$decoy" <<'CHECK'
+import json, sys
+d, root = json.load(open(sys.argv[1])), sys.argv[2]
+def commands(event):
+    return [h.get("command", "") for e in d["hooks"][event] for h in e["hooks"]]
+assert f"{root}/hooks/pm-check-gate.sh" in commands("PreToolUse"), commands("PreToolUse")
+assert f"{root}/hooks/pm-check-detect.sh" in commands("UserPromptSubmit"), \
+    commands("UserPromptSubmit")
+assert f"{root}/hooks/other/my-pm-check-gate.sh" in commands("PreToolUse"), "decoy dropped"
+assert "logger --tag pm-check-detect.sh" in commands("UserPromptSubmit"), "decoy dropped"
+CHECK
+check "look-alike commands do not suppress the real registration" $? \
+  "$(cat "$work/configure.out")"
+grep -q "detect, gate, reset" "$work/configure.out"
+check "the installer names which PM hooks it registered" $? "$(cat "$work/configure.out")"
 
 echo
 printf '%s passed, %s failed\n' "$passed" "$failed"

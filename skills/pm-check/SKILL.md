@@ -1,5 +1,6 @@
 ---
 name: pm-check
+version: 1.0.0
 description: Run Traba's pre-build checks before writing code for anything new — an app, a dashboard, a Neutron workflow or agent, a bot, a script, an integration. Routes the request through Neutron (which owns the Oracle checks) and reports whether it already exists, whether it should be a Neutron capability instead, and what is missing. Use when starting to build something, or when the PM-check gate has blocked a Write.
 ---
 
@@ -16,7 +17,8 @@ This skill is the client — it routes the request there and reports back.
 
 ## When this runs
 
-- The `pm-check-detect` hook saw a build-shaped prompt and blocked `Write`/`Edit`.
+- The `pm-check-detect` hook saw a build-shaped prompt and asked for this check. The
+  separate `pm-check-gate` hook is what refuses the write.
 - Or you were asked to build something and want to check first.
 
 Do **not** run it for edits to something that already exists, bug fixes, refactors, or
@@ -107,18 +109,19 @@ hard-rule violations. Then **state which path you are taking** — build fresh, 
 named thing, or don't build. Then record completion so the gate lifts:
 
 ```sh
-touch "$CLAUDE_PM_CHECK_DONE"
+touch "${CLAUDE_PM_CHECK_DONE:-${TMPDIR:-/tmp}/claude-pm-check-$CLAUDE_CODE_SESSION_ID.done}"
 ```
 
-`CLAUDE_PM_CHECK_DONE` is exported into the session by the `pm-check-reset`
-SessionStart hook, which is the only component that can see the session id. Do not
-try to reconstruct the path yourself — an agent has no way to read its own session
-id, and a literal `<session_id>` creates a file that lifts nothing.
+Run it exactly as written — both variables are set for you, and there is no
+placeholder to fill in.
 
-If the variable is empty (the hooks were installed mid-session, so the SessionStart
-hook has not run yet), take the path from either message that carries it: the
-pm-check context injected at the top of the turn, and the blocked-`Write` message,
-both end with the full `touch` command. Copy that command verbatim.
+`CLAUDE_PM_CHECK_DONE` is exported by the `pm-check-reset` SessionStart hook, built
+from the session id the hook itself received, so it is always the exact path the gate
+checks. `CLAUDE_CODE_SESSION_ID` is the fallback for a session where that hook has not
+run — hooks installed mid-session. It is set in every Bash subprocess and normally
+matches, but it can [report the startup id instead of the resumed one on `--continue`
+or `--resume` without an explicit id](https://code.claude.com/docs/en/env-vars), which
+is why it is second and not first.
 
 ## If Neutron is unreachable
 
@@ -128,6 +131,12 @@ session gets switched off, and a stranded session is worse than an unchecked bui
 
 ## Escape hatch
 
-`touch ~/.claude/.pm-check-off` disables the gate entirely, as does
-`CLAUDE_PM_CHECK=off`. Deliberate and documented beats people uninstalling the bundle to
-get work done.
+`CLAUDE_PM_CHECK=off` disables the gate entirely, as does the flag file:
+
+```sh
+touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.pm-check-off"
+```
+
+That is the path both hooks actually resolve — `~/.claude/.pm-check-off` is only correct
+for operators who have not set `CLAUDE_CONFIG_DIR`. Deliberate and documented beats
+people uninstalling the bundle to get work done.

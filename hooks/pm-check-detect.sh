@@ -64,6 +64,6 @@ done_flag="$state_dir/claude-pm-check-$session_id.done"
 escaped_done=$(printf '%s' "$done_flag" | sed 's/\\/\\\\/g; s/"/\\"/g')
 
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' \
-  "This looks like a request to build something. Before writing any code, invoke the pm-check skill — it runs Traba pre-build checks (does this already exist, should it be a Neutron capability instead, which data path, does the output land back in the system, who owns it) via Neutron. Write and Edit are BLOCKED until it has run. If the check genuinely does not apply, say why in one line, then run: touch '$escaped_done'"
+  "This looks like a request to build something. Before writing any code, invoke the pm-check skill — it runs Traba pre-build checks (does this already exist, should it be a Neutron capability instead, which data path, does the output land back in the system, who owns it) via Neutron. Write, Edit, MultiEdit, and NotebookEdit are BLOCKED until it has run. If the check genuinely does not apply, say why in one line, then run: touch '$escaped_done'"
 
 exit 0

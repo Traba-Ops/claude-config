@@ -3,8 +3,9 @@
 # behind by sessions that have since ended.
 #
 # Without the sweep, /tmp accumulates one or two empty files per build-shaped
-# session forever. Without the per-session clear, a `--fork` that inherits a
-# session id would start already-cleared or already-gated depending on timing.
+# session forever. The per-session clear covers the reverse: a session id that
+# comes back around — `/clear`, or a reused id after a crash — must not inherit a
+# gate armed by whatever ran under it before.
 #
 # On `resume`, `fork`, and `compact` the marks are deliberately KEPT: those all
 # continue a session that may be mid-build, and UserPromptSubmit does not re-fire
@@ -15,9 +16,11 @@
 # build request is gone from context, so a gate the agent can no longer explain
 # would just get touched away. The next build-shaped prompt re-arms it.
 #
-# It also publishes the session's completion-flag path as an environment
-# variable, which is the only way the pm-check skill can record completion — an
-# agent cannot see its own session id.
+# It also publishes the session's completion-flag path as `CLAUDE_PM_CHECK_DONE`,
+# so the pm-check skill can record completion. The skill falls back to building
+# the path from `$CLAUDE_CODE_SESSION_ID`, but this value is derived from the
+# session id the hook was actually handed, so it is exact even in the cases where
+# that variable can report the startup id instead (`--continue`).
 #
 # Never blocks session start: any failure exits 0.
 
