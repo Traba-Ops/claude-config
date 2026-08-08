@@ -383,5 +383,41 @@ grep -q "detect, gate, reset" "$work/configure.out"
 check "the installer names which PM hooks it registered" $? "$(cat "$work/configure.out")"
 
 echo
+echo "fail-open under an unset HOME"
+
+# Under `set -u` an unset HOME is fatal, and dash exits 2 — which Claude Code
+# reads as "erase the prompt" (UserPromptSubmit) or "block the tool call"
+# (PreToolUse). That inverts the fail-open contract into a silent fail-closed
+# for anyone on Ubuntu running under systemd, a container, or `env -i`.
+# Exit 0 is the whole assertion; these must never regress to 1 or 2 either.
+for shell in dash sh bash; do
+  command -v "$shell" >/dev/null 2>&1 || continue
+  for hook in "$detect" "$gate"; do
+    fresh "nohome-$shell-$(basename "$hook" .sh)"
+    env -u HOME -u CLAUDE_CONFIG_DIR TMPDIR="$state" \
+      "$shell" "$hook" </dev/null >/dev/null 2>&1
+    rc=$?
+    check "$shell: $(basename "$hook") exits 0 with HOME unset" "$rc" "exit was $rc"
+  done
+done
+
+echo
+echo "the sweep must not evict the running session"
+
+# SessionStart re-fires on auto-compaction, so a build session still alive after
+# 48h had its own .pending swept the moment it compacted — silently lifting the
+# gate in exactly the case the `compact` exemption exists to protect.
+fresh sweep1
+: > "$(pending_for "$SID")"
+touch -t 202601010000 "$(pending_for "$SID")"
+: > "$state/claude-pm-check-someone-else.pending"
+touch -t 202601010000 "$state/claude-pm-check-someone-else.pending"
+run_hook "$reset" "$(sessionstart_payload compact)" >/dev/null
+[ -f "$(pending_for "$SID")" ]
+check "compact keeps this session's mark even when it is 48h+ old" $?
+[ ! -f "$state/claude-pm-check-someone-else.pending" ]
+check "the sweep still evicts other sessions' stale marks" $?
+
+echo
 printf '%s passed, %s failed\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]

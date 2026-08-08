@@ -37,18 +37,25 @@ json_str() {
     head -1
 }
 
+session_id=$(json_str session_id)
+[ -n "$session_id" ] || exit 0
+
+done_flag="$state_dir/claude-pm-check-$session_id.done"
+
 # Sweep old marks regardless of source — cheap, and it is the only thing that
 # ever cleans up after a crashed session. `-mtime +1` is "more than one whole
 # 24h period", i.e. 48h and up, not 24h; the long window is deliberate, since
 # the sweep is unconditional and a shorter one is likelier to lift the gate on a
 # session that is still alive. Cleanup latency does not matter here.
+#
+# THIS SESSION'S marks are excluded, and the exclusion is the whole point of
+# running the sweep after `session_id` is known. SessionStart re-fires on
+# auto-compaction, so without it a build session still running after 48h has its
+# own `.pending` swept the moment it compacts — silently lifting the gate in
+# exactly the case the `compact` exemption below exists to protect.
 find "$state_dir" -maxdepth 1 -name 'claude-pm-check-*' -type f -mtime +1 \
+  ! -name "claude-pm-check-$session_id.*" \
   -exec rm -f {} + 2>/dev/null || true
-
-session_id=$(json_str session_id)
-[ -n "$session_id" ] || exit 0
-
-done_flag="$state_dir/claude-pm-check-$session_id.done"
 
 # Publish the completion-flag path to the session. `CLAUDE_ENV_FILE` is a
 # SessionStart-only facility: exports appended here are picked up by every

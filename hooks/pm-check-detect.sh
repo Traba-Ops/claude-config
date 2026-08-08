@@ -14,7 +14,11 @@
 set -u
 
 state_dir="${TMPDIR:-/tmp}"
-claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# HOME is guarded: under `set -u` an unset HOME is fatal, and dash exits 2 —
+# which Claude Code reads as "erase the prompt" (UserPromptSubmit) or "block the
+# tool call" (PreToolUse), inverting the fail-open contract into a silent
+# fail-closed. Fires under systemd units, containers, and `env -i` wrappers.
+claude_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
 
 # Global opt-out, so the gate is a guardrail and not a wall. A documented,
 # deliberate bypass beats people uninstalling the bundle to get work done.
