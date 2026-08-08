@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
-# PreToolUse hook (Write|Edit|MultiEdit): refuse to write code in a session that
-# was marked build-shaped by hooks/pm-check-detect.sh until the PM check has run.
+# PreToolUse hook (Write|Edit|MultiEdit|NotebookEdit): refuse to write code in a
+# session marked build-shaped by hooks/pm-check-detect.sh until the check ran.
+#
+# Bash is deliberately left ungated even though `cat > file` writes: the skill
+# needs Bash to record its own completion, so gating it would deadlock.
 #
 # Fires ONLY when the .pending mark exists and the .done mark does not, so a
 # session that never asked to build anything is never gated. That narrowness is
@@ -24,10 +27,25 @@ claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 payload=$(cat 2>/dev/null) || exit 0
 
-session_id=$(printf '%s' "$payload" |
-  tr -d '\n' |
-  sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
-  head -1)
+# Greedy `.*`, so this anchors on the last occurrence of the field. Both fields
+# read here are opaque identifiers with no escapes.
+json_str() {
+  printf '%s' "$payload" |
+    tr -d '\n' |
+    sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" |
+    head -1
+}
+
+# Subagent writes are not gated. PreToolUse fires inside subagents carrying the
+# PARENT's session_id plus an `agent_id` — present only inside a subagent call.
+# Without this, delegating implementation produces a denial inside an agent that
+# never saw the detector's injected context and cannot run the check
+# meaningfully; its only way out is to `touch` the flag, which teaches exactly
+# the bypass reflex this hook exists to prevent. The parent session stays gated
+# for its own writes, and the parent is where the decision to build is made.
+[ -n "$(json_str agent_id)" ] && exit 0
+
+session_id=$(json_str session_id)
 [ -n "$session_id" ] || exit 0
 
 pending="$state_dir/claude-pm-check-$session_id.pending"

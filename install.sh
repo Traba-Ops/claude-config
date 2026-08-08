@@ -184,15 +184,33 @@ def hook_script_path(hook):
     return argv[0]
 
 
-def event_hooks(data, event):
-    """The entries for one hook event in `data`, validated."""
+def warn(warnings, message):
+    """Record a warning once. Several steps read the same event, and an operator
+    does not need to be told three times that one key has the wrong shape."""
+    line = f"  WARNING: {message}"
+    if line not in warnings:
+        warnings.append(line)
+
+
+def event_hooks(data, event, warnings):
+    """The entries for one hook event in `data`, or None if unusable.
+
+    Returning None rather than raising is deliberate: a weird shape under one
+    event must not abort the whole pass. Every settings mutation here degrades
+    independently — the operator with an odd `hooks.PreToolUse` still gets the
+    ADHD hook, the prune on the other events, and auto mode.
+    """
     hooks = data.get("hooks", {})
     if not isinstance(hooks, dict):
-        raise Skip(f'"hooks" in {settings} is not an object')
+        warn(warnings, f'"hooks" in {settings} is not an object, so hook '
+                       "registration and cleanup were skipped.")
+        return None
 
     entries = hooks.get(event, [])
     if not isinstance(entries, list):
-        raise Skip(f'"hooks.{event}" in {settings} is not a list')
+        warn(warnings, f'"hooks.{event}" in {settings} is not a list, so hooks '
+                       f"for {event} were left alone.")
+        return None
 
     return entries
 
@@ -203,9 +221,9 @@ def set_event_hooks(data, event, entries):
     data["hooks"] = hooks
 
 
-def already_registered(data, event, script_name):
-    """True if some entry under `event` already runs `script_name`."""
-    for entry in event_hooks(data, event):
+def already_registered(entries, script_name):
+    """True if some entry in `entries` already runs `script_name`."""
+    for entry in entries:
         if not isinstance(entry, dict):
             continue
         entry_hooks = entry.get("hooks")
@@ -217,12 +235,19 @@ def already_registered(data, event, script_name):
     return False
 
 
-def register_adhd_hook(data):
-    """Add the ADHD SessionStart hook. True if `data` was changed."""
-    if already_registered(data, "SessionStart", "adhd-always-on.sh"):
+def register_hook(data, event, script_name, entry, warnings):
+    """Add one hook registration unless it is already there, or the event's
+    shape is unusable. True if `data` was changed."""
+    entries = event_hooks(data, event, warnings)
+    if entries is None or already_registered(entries, script_name):
         return False
+    set_event_hooks(data, event, list(entries) + [entry])
+    return True
 
-    session_start = list(event_hooks(data, "SessionStart")) + [{
+
+def register_adhd_hook(data, warnings):
+    """Add the ADHD SessionStart hook. True if `data` was changed."""
+    return register_hook(data, "SessionStart", "adhd-always-on.sh", {
         "matcher": "startup|resume|clear|compact",
         "hooks": [{
             "type": "command",
@@ -230,12 +255,10 @@ def register_adhd_hook(data):
             "timeout": 5,
             "statusMessage": "Checking ADHD always-on flag...",
         }],
-    }]
-    set_event_hooks(data, "SessionStart", session_start)
-    return True
+    }, warnings)
 
 
-def register_pm_check_hooks(data):
+def register_pm_check_hooks(data, warnings):
     """Wire the pre-build PM check: detect build-shaped prompts, gate writes
     until the check has run, and clear the marks on a fresh session.
 
@@ -243,50 +266,60 @@ def register_pm_check_hooks(data):
     is added independently, so a partially-registered settings.json converges
     instead of being skipped wholesale. True if `data` was changed.
     """
-    changed = False
+    # `UserPromptSubmit` takes no matcher — it always fires.
+    detect = register_hook(data, "UserPromptSubmit", "pm-check-detect.sh", {
+        "hooks": [{
+            "type": "command",
+            "command": pm_detect_command,
+            "timeout": 5,
+            "statusMessage": "Checking for a build request...",
+        }],
+    }, warnings)
 
-    if not already_registered(data, "UserPromptSubmit", "pm-check-detect.sh"):
-        entries = list(event_hooks(data, "UserPromptSubmit")) + [{
-            "hooks": [{
-                "type": "command",
-                "command": pm_detect_command,
-                "timeout": 5,
-                "statusMessage": "Checking for a build request...",
-            }],
-        }]
-        set_event_hooks(data, "UserPromptSubmit", entries)
-        changed = True
+    gate = register_hook(data, "PreToolUse", "pm-check-gate.sh", {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [{
+            "type": "command",
+            "command": pm_gate_command,
+            "timeout": 5,
+            "statusMessage": "Checking the pre-build gate...",
+        }],
+    }, warnings)
 
-    if not already_registered(data, "PreToolUse", "pm-check-gate.sh"):
-        entries = list(event_hooks(data, "PreToolUse")) + [{
-            "matcher": "Write|Edit|MultiEdit",
-            "hooks": [{
-                "type": "command",
-                "command": pm_gate_command,
-                "timeout": 5,
-                "statusMessage": "Checking the pre-build gate...",
-            }],
-        }]
-        set_event_hooks(data, "PreToolUse", entries)
-        changed = True
+    reset = register_hook(data, "SessionStart", "pm-check-reset.sh", {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [{
+            "type": "command",
+            "command": pm_reset_command,
+            "timeout": 5,
+            "statusMessage": "Clearing pre-build marks...",
+        }],
+    }, warnings)
 
-    if not already_registered(data, "SessionStart", "pm-check-reset.sh"):
-        entries = list(event_hooks(data, "SessionStart")) + [{
-            "matcher": "startup|resume|clear|compact",
-            "hooks": [{
-                "type": "command",
-                "command": pm_reset_command,
-                "timeout": 5,
-                "statusMessage": "Clearing pre-build marks...",
-            }],
-        }]
-        set_event_hooks(data, "SessionStart", entries)
-        changed = True
-
-    return changed
+    return detect or gate or reset
 
 
-def prune_missing_bundle_hooks(data):
+def definitely_absent(path):
+    """True only when `path` is provably not there.
+
+    `os.path.exists` is the wrong test for a prune. It follows symlinks and it
+    answers False for anything it cannot stat, so a hook symlinked into a
+    dotfiles checkout, sitting on an unmounted drive, or under a directory the
+    installer cannot traverse looks identical to a deleted one — and pruning it
+    silently deregisters an operator's working hook across three events. `lstat`
+    tests the link itself, and every error other than "no such file" is read as
+    "keep it".
+    """
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False  # unreadable parent, dead mount, anything else — assume live
+    return False
+
+
+def prune_missing_bundle_hooks(data, warnings):
     """Drop hooks pointing at a bundle script that no longer exists, across every
     event this bundle manages. True if `data` was changed.
 
@@ -294,18 +327,20 @@ def prune_missing_bundle_hooks(data):
     its registration in settings.json doesn't — leaving every session start to
     fail on a missing command. Only the script a hook runs is tested, only when
     it sits under the bundle's own hooks directory, and only when that file is
-    actually gone — so an operator's own hooks are never touched, arguments and
+    provably gone — so an operator's own hooks are never touched, arguments and
     all.
     """
     return any(
         # Listed first so `any` cannot short-circuit and skip later events.
-        [prune_event(data, event) for event in managed_events]
+        [prune_event(data, event, warnings) for event in managed_events]
     )
 
 
-def prune_event(data, event):
+def prune_event(data, event, warnings):
     """Prune retired bundle hooks under one event. True if `data` was changed."""
-    entries = event_hooks(data, event)
+    entries = event_hooks(data, event, warnings)
+    if entries is None:
+        return False
     changed = False
     kept_entries = []
 
@@ -325,7 +360,7 @@ def prune_event(data, event):
             if (
                 script.startswith(hooks_dir)
                 and script not in bundle_commands
-                and not os.path.exists(script)
+                and definitely_absent(script)
             ):
                 dropped = True
                 continue
@@ -401,11 +436,11 @@ def configure():
 
     changes = []
     warnings = []
-    if prune_missing_bundle_hooks(data):
+    if prune_missing_bundle_hooks(data, warnings):
         changes.append("  Cleaning up: hooks for retired bundle scripts")
-    if register_adhd_hook(data):
+    if register_adhd_hook(data, warnings):
         changes.append("  Registering: ADHD SessionStart hook")
-    if register_pm_check_hooks(data):
+    if register_pm_check_hooks(data, warnings):
         changes.append("  Registering: pre-build PM check hooks")
     if set_auto_permission_mode(data, warnings):
         changes.append("  Setting: auto as the default permission mode")
@@ -444,14 +479,16 @@ def configure():
 try:
     configure()
 except Skip as exc:
-    print("  WARNING: the ADHD SessionStart hook and auto mode could not be")
-    print(f"           set up: {exc}.")
+    print("  WARNING: the ADHD SessionStart hook, the pre-build PM check hooks,")
+    print(f"           and auto mode could not be set up: {exc}.")
     print("           Nothing was changed. Fix that file and re-run this installer,")
-    print('           or say "/i-have-adhd" for ADHD mode and Shift+Tab for auto mode.')
+    print('           or say "/i-have-adhd" for ADHD mode and Shift+Tab for auto')
+    print("           mode. The pre-build gate stays off until the file parses.")
 except Exception as exc:  # never let this step break the install
     print(f"  WARNING: settings.json setup failed ({exc}).")
     print('           Nothing was changed. The skills are installed; say "/i-have-adhd"')
-    print("           for ADHD mode and cycle to auto mode with Shift+Tab.")
+    print("           for ADHD mode and cycle to auto mode with Shift+Tab. The")
+    print("           pre-build PM check hooks are not registered.")
 PY
 else
   echo "  Skipped: ADHD hook + auto mode setup (python3 not found) — nothing"

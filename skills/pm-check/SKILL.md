@@ -22,6 +22,12 @@ This skill is the client — it routes the request there and reports back.
 Do **not** run it for edits to something that already exists, bug fixes, refactors, or
 questions about existing systems. It is a pre-*build* check, not a pre-edit check.
 
+The gate covers `Write`, `Edit`, `MultiEdit`, and `NotebookEdit` in the main session.
+It does not cover subagents — a delegated implementation never saw the prompt that
+triggered the check and cannot run it meaningfully — nor `Bash`, since this skill
+needs `Bash` to record its own completion. Both are open paths by design; the check
+is a prompt for thought before building, not a sandbox.
+
 ## Steps
 
 ### 1. State what is being built, in one sentence
@@ -101,11 +107,18 @@ hard-rule violations. Then **state which path you are taking** — build fresh, 
 named thing, or don't build. Then record completion so the gate lifts:
 
 ```sh
-touch "${TMPDIR:-/tmp}/claude-pm-check-<session_id>.done"
+touch "$CLAUDE_PM_CHECK_DONE"
 ```
 
-The blocked-tool message contains the exact path — copy it from there rather than
-reconstructing it.
+`CLAUDE_PM_CHECK_DONE` is exported into the session by the `pm-check-reset`
+SessionStart hook, which is the only component that can see the session id. Do not
+try to reconstruct the path yourself — an agent has no way to read its own session
+id, and a literal `<session_id>` creates a file that lifts nothing.
+
+If the variable is empty (the hooks were installed mid-session, so the SessionStart
+hook has not run yet), take the path from either message that carries it: the
+pm-check context injected at the top of the turn, and the blocked-`Write` message,
+both end with the full `touch` command. Copy that command verbatim.
 
 ## If Neutron is unreachable
 

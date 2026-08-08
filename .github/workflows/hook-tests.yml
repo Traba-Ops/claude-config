@@ -1,0 +1,22 @@
+name: Hook tests
+
+# The pre-build PM check is the one part of this bundle that can BLOCK an
+# operator's work, and its inputs are hook payloads no reviewer sees. Run the
+# suite on every change to the hooks, the installer, or the tests themselves.
+on:
+  push:
+    branches: [main]
+    paths: ['hooks/**', 'install.sh', '.github/tests/**', '.github/workflows/hook-tests.yml']
+  pull_request:
+    paths: ['hooks/**', 'install.sh', '.github/tests/**', '.github/workflows/hook-tests.yml']
+
+jobs:
+  pm-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # dash, not bash: the hooks declare `#!/usr/bin/env sh` and must run
+      # wherever Claude Code runs a command hook, not just where sh is bash.
+      - run: sudo apt-get install -y dash shellcheck
+      - run: dash .github/tests/pm-check-hooks.sh
+      - run: shellcheck -s sh hooks/*.sh .github/tests/pm-check-hooks.sh

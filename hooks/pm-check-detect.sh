@@ -23,8 +23,11 @@ claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 payload=$(cat 2>/dev/null) || exit 0
 
-# Extract a JSON string field without jq. Takes the first match; good enough for
-# session_id (opaque, no escapes) and prompt_text (we only lowercase-match it).
+# Extract a JSON string field without jq. The leading `.*` is greedy, so this
+# anchors on the LAST occurrence of the field, not the first. Good enough for
+# the two fields read here: `session_id` is opaque with no escapes, and `prompt`
+# is only lowercase-matched. A `"` inside the prompt arrives escaped as `\"` and
+# simply breaks the match, so a prompt cannot forge a field.
 json_str() {
   printf '%s' "$payload" |
     tr -d '\n' |
@@ -35,12 +38,17 @@ json_str() {
 session_id=$(json_str session_id)
 [ -n "$session_id" ] || exit 0
 
-prompt=$(json_str prompt_text | tr '[:upper:]' '[:lower:]')
+# `prompt` is the documented UserPromptSubmit field carrying the submitted text.
+prompt=$(json_str prompt | tr '[:upper:]' '[:lower:]')
 [ -n "$prompt" ] || exit 0
 
 # Build-shaped = an intent verb AND an artifact noun. Requiring both keeps
 # "add a comment", "create a variable", and "write a test" from tripping it.
-echo "$prompt" | grep -qE '(build|create|add|implement|make|set up|setup|spin up|write) ' || exit 0
+#
+# Both groups are word-bounded. Without a leading \b on the verbs, any word
+# ENDING in one of them matches — "rebuild the report" and "readd the endpoint"
+# would gate, which is the edit case this check is explicitly not for.
+echo "$prompt" | grep -qE '\b(build|create|add|implement|make|set up|setup|spin up|write)\b' || exit 0
 echo "$prompt" | grep -qE '\b(app|tool|dashboard|workflow|agent|bot|script|endpoint|page|report|integration|service|automation|pipeline|job|cron)\b' || exit 0
 
 pending="$state_dir/claude-pm-check-$session_id.pending"

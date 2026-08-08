@@ -25,6 +25,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 | **ADHD output mode** | Answers shaped to be acted on — next action first, numbered steps, no tangents | `~/.claude/skills/i-have-adhd/` + `~/.claude/hooks/adhd-always-on.sh`, on by default (see below) |
+| **Pre-build PM check** | Routes a build-shaped request through Neutron for prior art, routing, and ownership before any code is written — and blocks `Write`/`Edit` until it has run | `~/.claude/skills/pm-check/` + `~/.claude/hooks/pm-check-{detect,gate,reset}.sh`, on by default (see below) |
 
 **How operators get it:**
 
@@ -42,7 +43,13 @@ The installer clones the repo, copies skills + rules into `~/.claude/`, and sets
 
 **ADHD output mode (on by default):** the installer creates the empty flag file `~/.claude/.i-have-adhd-always` and registers `hooks/adhd-always-on.sh` as a `SessionStart` hook in `~/.claude/settings.json`. The hook injects the ruleset every session. Both steps are idempotent, but "on by default" is literal: the installer recreates an absent flag file, so an operator who opted out by deleting it is opted back in on the next installer run. (The hourly `git pull` doesn't run the installer, so an opt-out holds until the operator re-runs the curl command themselves.) An existing flag file or registered hook is left alone.
 
-The skill is vendored from the [i-have-adhd](https://github.com/ayghri/i-have-adhd) plugin (MIT, license kept at `skills/i-have-adhd/LICENSE`) rather than installed per person, so hourly `git pull` keeps it current. What changes: the next action leads, multi-step work gets numbered, state is restated across turns, tangents are suppressed. Code, commits, PRs, security warnings, and destructive-action confirmations are untouched. Switches:
+**Pre-build PM check (on by default):** `install.sh` registers three hooks in `~/.claude/settings.json` — `pm-check-detect.sh` on `UserPromptSubmit`, `pm-check-gate.sh` on `PreToolUse` (`Write|Edit|MultiEdit|NotebookEdit`), and `pm-check-reset.sh` on `SessionStart`. A prompt carrying both an intent verb and an artifact noun ("build a dashboard", "spin up a bot") marks the session build-shaped and injects a nudge to run the `pm-check` skill; `Write` and `Edit` are denied until the skill records completion. Editing something that exists, bug fixes, and refactors never gate — the check is pre-*build*, not pre-edit. Subagent writes and `Bash` are deliberately ungated: a subagent never saw the prompt that triggered the check, and the skill needs `Bash` to record completion.
+
+> **This is setup-dependent — existing operators must re-run the curl installer.** The hourly `git pull` delivers `skills/pm-check/` and the three hook scripts, but nothing registers them, so the gate stays inert until `install.sh` runs again. Tell operators to re-run it when this ships.
+
+State lives in two empty files per session under `$TMPDIR` (`claude-pm-check-<session_id>.{pending,done}`), swept after 48h. The reset hook exports `CLAUDE_PM_CHECK_DONE` via `CLAUDE_ENV_FILE` so the skill can record completion — an agent cannot see its own session id. Escape hatches: `touch ~/.claude/.pm-check-off` or `CLAUDE_PM_CHECK=off` disables it entirely, and every hook fails open, so a broken hook degrades to no guardrail rather than a wedged session.
+
+The ADHD skill is vendored from the [i-have-adhd](https://github.com/ayghri/i-have-adhd) plugin (MIT, license kept at `skills/i-have-adhd/LICENSE`) rather than installed per person, so hourly `git pull` keeps it current. What changes: the next action leads, multi-step work gets numbered, state is restated across turns, tangents are suppressed. Code, commits, PRs, security warnings, and destructive-action confirmations are untouched. Switches:
 
 | Want | Say / do |
 |---|---|
