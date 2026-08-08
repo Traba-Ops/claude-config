@@ -25,7 +25,7 @@ The skills bundle lives in a **shared repo** on the `Traba-Ops` GitHub org ([`Tr
 | **Teammate collab** | Coordinate with another operator's Claude over a shared Slack thread | `~/.claude/skills/teammate-collab/` (loaded when relevant) |
 | **Data access** | Traba MCP, BigQuery RBAC, ontology (coming soon) | `~/.claude/skills/data-access/` |
 | **ADHD output mode** | Answers shaped to be acted on — next action first, numbered steps, no tangents | `~/.claude/skills/i-have-adhd/` + `~/.claude/hooks/adhd-always-on.sh`, on by default (see below) |
-| **Pre-build PM check** | Routes a build-shaped request through Neutron for prior art, routing, and ownership before any code is written — and blocks `Write`/`Edit` until it has run | `~/.claude/skills/pm-check/` + `~/.claude/hooks/pm-check-{detect,gate,reset}.sh`, on by default (see below) |
+| **Pre-build PM check** | Routes a build-shaped request through Neutron for prior art, routing, and ownership before any code is written — and blocks `Write`/`Edit` until it has run | `~/.claude/skills/pm-check/` + `~/.claude/hooks/pm-check-{detect,gate,reset,done}.sh`, on by default (see below) |
 
 **How operators get it:**
 
@@ -47,7 +47,7 @@ The installer clones the repo, copies skills + rules into `~/.claude/`, and sets
 
 > **This is setup-dependent — existing operators must re-run the curl installer.** The hourly `git pull` delivers `skills/pm-check/` and the three hook scripts, but nothing registers them, so the gate stays inert until `install.sh` runs again. Tell operators to re-run it when this ships.
 
-State lives in two empty files per session under `$TMPDIR` (`claude-pm-check-<session_id>.{pending,done}`), swept after 48h. The reset hook exports `CLAUDE_PM_CHECK_DONE` via `CLAUDE_ENV_FILE` so the skill can record completion — an agent cannot see its own session id. Escape hatches: `touch ~/.claude/.pm-check-off` or `CLAUDE_PM_CHECK=off` disables it entirely, and every hook fails open, so a broken hook degrades to no guardrail rather than a wedged session.
+State lives in two empty files per session under `$TMPDIR` (`claude-pm-check-<session_id>.{pending,done}`), swept after 48h. The reset hook exports `CLAUDE_PM_CHECK_DONE` via `CLAUDE_ENV_FILE` so the skill can record completion — an agent cannot see its own session id. The skill records via `hooks/pm-check-done.sh`, which is not a registered hook and needs no installer pass: it prefers that exported path, falls back to `CLAUDE_CODE_SESSION_ID` for sessions where the reset hook never ran, and on that fallback verifies the flag landed next to the armed `.pending` — the fallback variable can report the startup id on `--continue`/`--resume`, which would otherwise leave the session gated with no visible cause. Escape hatches: `touch ~/.claude/.pm-check-off` or `CLAUDE_PM_CHECK=off` disables it entirely, and every hook fails open, so a broken hook degrades to no guardrail rather than a wedged session.
 
 The ADHD skill is vendored from the [i-have-adhd](https://github.com/ayghri/i-have-adhd) plugin (MIT, license kept at `skills/i-have-adhd/LICENSE`) rather than installed per person, so hourly `git pull` keeps it current. What changes: the next action leads, multi-step work gets numbered, state is restated across turns, tangents are suppressed. Code, commits, PRs, security warnings, and destructive-action confirmations are untouched. Switches:
 

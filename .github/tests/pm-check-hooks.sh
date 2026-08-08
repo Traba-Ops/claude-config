@@ -27,6 +27,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 detect="$repo/hooks/pm-check-detect.sh"
 gate="$repo/hooks/pm-check-gate.sh"
 reset="$repo/hooks/pm-check-reset.sh"
+done_script="$repo/hooks/pm-check-done.sh"
 
 work=$(mktemp -d) || exit 1
 trap 'rm -rf "$work"' EXIT INT TERM
@@ -325,29 +326,86 @@ out=$(run_hook "$gate" "$(pretool_payload "")")
 case "$out" in *'"deny"'*) r=0 ;; *) r=1 ;; esac
 check "e2e: Write denied after a build-shaped prompt" $r
 
-# Exactly what skills/pm-check/SKILL.md tells the agent to run, verbatim.
-skill_touch() { # runs with whatever env the caller sets
-  touch "${CLAUDE_PM_CHECK_DONE:-${TMPDIR:-/tmp}/claude-pm-check-$CLAUDE_CODE_SESSION_ID.done}"
-}
-( . "$envfile" && TMPDIR="$state" CLAUDE_CODE_SESSION_ID=ignored skill_touch )
+# Exactly what skills/pm-check/SKILL.md step 6 tells the agent to run. The
+# script is invoked here, not a copy of its logic — a reimplementation in the
+# test is how the earlier rounds certified behaviour nothing shipped.
+( . "$envfile" && TMPDIR="$state" CLAUDE_CODE_SESSION_ID=ignored sh "$done_script" \
+  >/dev/null )
 check "e2e: the SKILL.md command resolves and runs" $?
 out=$(run_hook "$gate" "$(pretool_payload "")")
 [ -z "$out" ]
 check "e2e: Write allowed after the skill records completion" $?
 
 # The fallback branch: no SessionStart hook ran (hooks installed mid-session), so
-# the skill builds the path from CLAUDE_CODE_SESSION_ID instead. Verified above
-# against a live Claude Code run that this variable equals the hook's session_id.
+# the path is built from CLAUDE_CODE_SESSION_ID instead. Verified above against a
+# live Claude Code run that this variable equals the hook's session_id.
 fresh e2
 run_hook "$detect" "$(prompt_payload "build a slack bot for daily recaps")" >/dev/null
 out=$(run_hook "$gate" "$(pretool_payload "")")
 [ -n "$out" ]
 check "e2e fallback: Write denied with no env file" $?
-( unset CLAUDE_PM_CHECK_DONE; TMPDIR="$state" CLAUDE_CODE_SESSION_ID="$SID" skill_touch )
+( unset CLAUDE_PM_CHECK_DONE
+  TMPDIR="$state" CLAUDE_CODE_SESSION_ID="$SID" sh "$done_script" >/dev/null )
 check "e2e fallback: the SKILL.md command works off CLAUDE_CODE_SESSION_ID" $?
 out=$(run_hook "$gate" "$(pretool_payload "")")
 [ -z "$out" ]
-check "e2e fallback: Write allowed after the fallback touch" $?
+check "e2e fallback: Write allowed after the fallback record" $?
+
+echo "pm-check-done.sh"
+
+# The failure this script exists for. CLAUDE_CODE_SESSION_ID is documented to
+# report the INITIAL startup id on `--continue`/`--resume` without an explicit
+# id, while the gate keys off the session id in its own payload. A bare `touch`
+# writes a path nothing reads and reports success, stranding the session with no
+# recovery but the opt-out. Recording must fail loudly instead.
+fresh d1
+: > "$(pending_for $SID)"
+out=$( unset CLAUDE_PM_CHECK_DONE
+       TMPDIR="$state" CLAUDE_CODE_SESSION_ID=startup-id sh "$done_script" 2>&1 )
+r=$?
+[ "$r" -ne 0 ]
+check "a fallback id that misses the armed gate exits non-zero" $? "got rc=$r"
+case "$out" in *"$(pending_for $SID)"*) r=0 ;; *) r=1 ;; esac
+check "the failure names the .pending the gate is armed on" $r "got: $out"
+out=$(run_hook "$gate" "$(pretool_payload "")")
+case "$out" in *'"deny"'*) r=0 ;; *) r=1 ;; esac
+check "the gate is still armed after a missed record" $r
+
+# The recovery: the exact path, which both the detector's injected context and
+# the deny message carry literally.
+out=$( unset CLAUDE_PM_CHECK_DONE
+       TMPDIR="$state" sh "$done_script" "$(done_for $SID)" 2>&1 )
+check "an explicit .done path records" $? "got: $out"
+out=$(run_hook "$gate" "$(pretool_payload "")")
+[ -z "$out" ]
+check "the explicit path lifts the gate" $?
+
+# The cross-check is scoped to the fallback branch on purpose. CLAUDE_PM_CHECK_DONE
+# is built by the reset hook from the session id it was handed, so it cannot be
+# wrong — and a session that ran the check proactively has no .pending of its
+# own. Crying wolf there would train the agent to ignore the output.
+fresh d2
+: > "$(pending_for other-session)"
+out=$( TMPDIR="$state" CLAUDE_PM_CHECK_DONE="$(done_for $SID)" sh "$done_script" 2>&1 )
+check "the exported path never cross-checks against another session's gate" $? \
+  "got: $out"
+[ -f "$(done_for $SID)" ]
+check "the exported path is still recorded" $?
+
+# Same fallback branch, nothing armed anywhere: an ungated session recording a
+# proactive check is not a failure.
+fresh d3
+out=$( unset CLAUDE_PM_CHECK_DONE
+       TMPDIR="$state" CLAUDE_CODE_SESSION_ID="$SID" sh "$done_script" 2>&1 )
+check "the fallback with no gate armed is not an error" $? "got: $out"
+
+fresh d4
+out=$( unset CLAUDE_PM_CHECK_DONE
+       unset CLAUDE_CODE_SESSION_ID
+       TMPDIR="$state" sh "$done_script" 2>&1 )
+r=$?
+[ "$r" -ne 0 ]
+check "neither variable set is reported, not guessed at" $? "got rc=$r: $out"
 
 echo "install.sh settings pass"
 

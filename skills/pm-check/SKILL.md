@@ -109,19 +109,32 @@ hard-rule violations. Then **state which path you are taking** — build fresh, 
 named thing, or don't build. Then record completion so the gate lifts:
 
 ```sh
-touch "${CLAUDE_PM_CHECK_DONE:-${TMPDIR:-/tmp}/claude-pm-check-$CLAUDE_CODE_SESSION_ID.done}"
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/pm-check-done.sh"
 ```
 
-Run it exactly as written — both variables are set for you, and there is no
-placeholder to fill in.
+Run it exactly as written — there is no placeholder to fill in. **Read its output.**
+It prints `pm-check recorded: <path>` on success, and on failure it says so and tells
+you what to do; do not report the check as complete on a failure.
 
-`CLAUDE_PM_CHECK_DONE` is exported by the `pm-check-reset` SessionStart hook, built
-from the session id the hook itself received, so it is always the exact path the gate
-checks. `CLAUDE_CODE_SESSION_ID` is the fallback for a session where that hook has not
-run — hooks installed mid-session. It is set in every Bash subprocess and normally
-matches, but it can [report the startup id instead of the resumed one on `--continue`
-or `--resume` without an explicit id](https://code.claude.com/docs/en/env-vars), which
-is why it is second and not first.
+The script resolves the flag path the gate actually checks. It prefers
+`CLAUDE_PM_CHECK_DONE`, exported by the `pm-check-reset` SessionStart hook from the
+session id the hook itself received, so that value is exact. It falls back to
+`CLAUDE_CODE_SESSION_ID` for a session where that hook never ran — hooks installed
+mid-session. The fallback normally matches, but it can [report the startup id instead
+of the resumed one on `--continue` or `--resume` without an explicit
+id](https://code.claude.com/docs/en/env-vars), so on that branch the script verifies
+the flag landed next to the `.pending` the gate is armed on, and fails loudly if it
+did not — rather than reporting success and leaving the next Write denied for a reason
+nobody can see.
+
+If it fails, pass the exact `.done` path and re-run:
+
+```sh
+"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/pm-check-done.sh" <path>
+```
+
+The pm-check context you were given carries that path literally, and so does the
+message on any blocked Write.
 
 ## If Neutron is unreachable
 
