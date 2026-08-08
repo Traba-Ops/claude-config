@@ -314,8 +314,12 @@ def register_pm_check_hooks(data, warnings):
     }, warnings):
         added.append("gate")
 
+    # `fork` is listed because the hook exempts forked sessions by name, and it
+    # cannot exempt a source it never receives. Without it the hook simply never
+    # runs on a fork, which reaches the same outcome by accident and skips the
+    # `CLAUDE_PM_CHECK_DONE` export the forked session needs to clear its gate.
     if register_hook(data, "SessionStart", pm_reset_command, {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [{
             "type": "command",
             "command": pm_reset_command,

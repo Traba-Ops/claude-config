@@ -62,10 +62,18 @@ find "$state_dir" -maxdepth 1 -name 'claude-pm-check-*' -type f -mtime +1 \
 # subsequent Bash tool call, so the skill can run `touch "$CLAUDE_PM_CHECK_DONE"`
 # instead of reconstructing a session id it has no way to see. Written before
 # the source check below so resumed, forked, and compacted sessions get it too.
+#
+# Appended only if it is not already there. SessionStart re-fires on every
+# compaction, and a long session compacts many times, so an unconditional `>>`
+# grows the env file by one duplicate export per compaction for the whole
+# session. The value is identical each time, so a plain presence check is
+# enough.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   quoted=$(printf '%s' "$done_flag" | sed "s/'/'\\\\''/g")
-  printf "export CLAUDE_PM_CHECK_DONE='%s'\n" "$quoted" \
-    >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
+  export_line=$(printf "export CLAUDE_PM_CHECK_DONE='%s'" "$quoted")
+  if ! grep -qxF "$export_line" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    printf '%s\n' "$export_line" >> "$CLAUDE_ENV_FILE" 2>/dev/null || true
+  fi
 fi
 
 case "$(json_str source)" in

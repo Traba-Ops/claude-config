@@ -131,6 +131,57 @@ run_hook "$detect" "$(prompt_payload "set up a cron job for the recap")" >/dev/n
 [ -f "$(pending_for $SID)" ]
 check "multi-word verb \"set up\" still arms the gate" $?
 
+# Gerunds. A bare \bbuild\b cannot match "building", and these are plausibly the
+# most common phrasing of a build request.
+i=0
+for gerund in \
+  "building an internal tool for recruiting" \
+  "creating a dashboard for shift fill" \
+  "spinning up a new service for the roster" \
+  "standing up a slack bot for daily recaps" \
+  "scaffolding a new integration with paylocity"
+do
+  i=$((i + 1))
+  fresh "d11$i"
+  run_hook "$detect" "$(prompt_payload "$gerund")" >/dev/null
+  [ -f "$(pending_for $SID)" ]
+  check "gerund arms the gate: \"$gerund\"" $?
+done
+
+# Edit and bug-fix requests. SKILL.md says explicitly this is not a pre-edit
+# check; each of these gated before the indefinite-determiner rule.
+i=0
+for edit_case in \
+  "make sure the pipeline job passes ci" \
+  "add a comment to the script explaining the cron" \
+  "the report page is broken, can you add logging to the job" \
+  "add a test to the job runner" \
+  "fix the dashboard so the report page loads"
+do
+  i=$((i + 1))
+  fresh "d12$i"
+  run_hook "$detect" "$(prompt_payload "$edit_case")" >/dev/null
+  [ ! -f "$(pending_for $SID)" ]
+  check "edit request does NOT arm the gate: \"$edit_case\"" $?
+done
+
+# A quoted phrase arrives with escaped quotes. Requiring a closing quote
+# truncated the prompt at the first one, dropping the noun and skipping the
+# check entirely.
+fresh d13
+run_hook "$detect" "$(printf '{"session_id":"%s","hook_event_name":"UserPromptSubmit","prompt":"build a \\"shift fill\\" dashboard for ops"}' "$SID")" >/dev/null
+[ -f "$(pending_for $SID)" ]
+check "a quoted phrase in the prompt still arms the gate" $?
+
+# A prompt far larger than the byte cap. Guards the pairing that makes the cap
+# safe: extraction must not require a closing quote, or capping turns every long
+# prompt into a silent bypass.
+fresh d14
+big=$(printf 'build me a dashboard for shift fill rates. context: '; head -c 400000 /dev/zero | tr '\0' 'x')
+run_hook "$detect" "$(prompt_payload "$big")" >/dev/null
+[ -f "$(pending_for $SID)" ]
+check "a 400KB prompt still arms the gate" $?
+
 fresh d8
 : > "$claude_home/.pm-check-off"
 run_hook "$detect" "$(prompt_payload "build me a dashboard")" >/dev/null
@@ -185,6 +236,39 @@ out=$(run_hook "$gate" "$(pretool_payload "")")
 [ -z "$out" ]
 check "the .pm-check-off flag lifts the gate mid-session" $?
 
+# A PreToolUse payload embeds the file being written, so an unbounded scan makes
+# every Write in every session pay for the file's size — org-wide, on writes
+# that are never gated.
+#
+# Asserted without a stopwatch. The extractor is greedy, so it returns the LAST
+# match: a decoy session_id parked beyond the byte cap is invisible to a bounded
+# scan and wins an unbounded one. Denying here therefore proves the cap is in
+# force, deterministically and without a timing threshold that would go flaky on
+# a loaded CI box.
+fresh g6
+blob=$(head -c 2000000 /dev/zero | tr '\0' 'x')
+big_payload=$(printf '{"session_id":"%s","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x","content":"%s"},"session_id":"decoy-past-the-cap"}' "$SID" "$blob")
+: > "$(pending_for $SID)"
+out=$(run_hook "$gate" "$big_payload")
+case "$out" in *'"deny"'*) r=0 ;; *) r=1 ;; esac
+check "the session_id scan stops at the byte cap on a 2MB payload" $r
+
+fresh g7
+out=$(run_hook "$gate" "$big_payload")
+[ -z "$out" ]
+check "a 2MB Write in an ungated session is still allowed" $?
+
+# A control character in TMPDIR must not produce invalid JSON: Claude Code
+# discards a malformed hook output whole, turning this deny into an allow.
+fresh g8
+state="$work/tab	dir.$$"
+rm -rf "$state"; mkdir -p "$state"
+: > "$(pending_for $SID)"
+out=$(run_hook "$gate" "$(pretool_payload "")")
+printf '%s' "$out" | python3 -c "import json,sys; json.loads(sys.stdin.read())"
+check "output stays valid JSON when the state path holds a control character" $? \
+  "got: $out"
+
 echo "pm-check-reset.sh"
 
 for src in startup clear; do
@@ -215,6 +299,18 @@ done
 fresh r4
 run_hook "$reset" "$(sessionstart_payload startup)" >/dev/null
 check "a missing CLAUDE_ENV_FILE is not an error" $?
+
+# SessionStart re-fires on every compaction, so an unconditional >> grows the
+# env file by one duplicate export per compaction for the life of the session.
+fresh r5
+envfile="$work/envfile.dup"
+: > "$envfile"
+for _ in 1 2 3 4 5; do
+  CLAUDE_ENV_FILE="$envfile" run_hook "$reset" "$(sessionstart_payload compact)" >/dev/null
+done
+n=$(grep -c "CLAUDE_PM_CHECK_DONE" "$envfile")
+[ "$n" -eq 1 ]
+check "five compactions leave exactly one export line" $? "got $n lines"
 
 echo "end to end"
 
@@ -279,6 +375,12 @@ assert d["permissions"]["defaultMode"] == "auto"
 assert any(h["hooks"][0]["command"].endswith("pm-check-detect.sh")
            for h in d["hooks"]["UserPromptSubmit"])
 assert all("matcher" not in e for e in d["hooks"]["UserPromptSubmit"])
+# The reset hook exempts forked sessions by name, so it has to be registered for
+# a source it can actually receive.
+reset = [e for e in d["hooks"]["SessionStart"]
+         if e["hooks"][0]["command"].endswith("pm-check-reset.sh")]
+assert len(reset) == 1, reset
+assert "fork" in reset[0]["matcher"], reset[0]["matcher"]
 CHECK
 check "fresh install registers all three hooks, matcher covers NotebookEdit" $? \
   "$(cat "$work/configure.out")"
