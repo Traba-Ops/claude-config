@@ -137,6 +137,23 @@ settings = pathlib.Path(claude_dir) / "settings.json"
 # prefix that registrations were written with (no `//hooks/`).
 hooks_dir = claude_dir.rstrip("/") + "/hooks/"
 command = f"{hooks_dir}adhd-always-on.sh"
+pm_detect_command = f"{hooks_dir}pm-check-detect.sh"
+pm_gate_command = f"{hooks_dir}pm-check-gate.sh"
+pm_reset_command = f"{hooks_dir}pm-check-reset.sh"
+
+# Every script this bundle registers. The prune below deletes registrations whose
+# script is gone from hooks/ — so a command missing from this set that is
+# temporarily absent from disk would be pruned and then re-added on the next
+# install, churning settings.json. Keep it in sync with what gets registered.
+bundle_commands = {
+    command,
+    pm_detect_command,
+    pm_gate_command,
+    pm_reset_command,
+}
+
+# The hook events this bundle manages. Prune only ever looks at these.
+managed_events = ("SessionStart", "UserPromptSubmit", "PreToolUse")
 
 
 class Skip(Exception):
@@ -167,42 +184,45 @@ def hook_script_path(hook):
     return argv[0]
 
 
-def session_start_hooks(data):
-    """The SessionStart entries in `data`, validated."""
+def event_hooks(data, event):
+    """The entries for one hook event in `data`, validated."""
     hooks = data.get("hooks", {})
     if not isinstance(hooks, dict):
         raise Skip(f'"hooks" in {settings} is not an object')
 
-    session_start = hooks.get("SessionStart", [])
-    if not isinstance(session_start, list):
-        raise Skip(f'"hooks.SessionStart" in {settings} is not a list')
+    entries = hooks.get(event, [])
+    if not isinstance(entries, list):
+        raise Skip(f'"hooks.{event}" in {settings} is not a list')
 
-    return session_start
+    return entries
 
 
-def set_session_start_hooks(data, session_start):
+def set_event_hooks(data, event, entries):
     hooks = dict(data.get("hooks", {}))
-    hooks["SessionStart"] = session_start
+    hooks[event] = entries
     data["hooks"] = hooks
 
 
-def register_adhd_hook(data):
-    """Add the ADHD SessionStart hook. True if `data` was changed."""
-    session_start = session_start_hooks(data)
-
-    for entry in session_start:
+def already_registered(data, event, script_name):
+    """True if some entry under `event` already runs `script_name`."""
+    for entry in event_hooks(data, event):
         if not isinstance(entry, dict):
             continue
         entry_hooks = entry.get("hooks")
         if not isinstance(entry_hooks, list):
             continue
         for hook in entry_hooks:
-            if not isinstance(hook, dict):
-                continue
-            if "adhd-always-on.sh" in str(hook.get("command", "")):
-                return False  # already registered
+            if isinstance(hook, dict) and script_name in str(hook.get("command", "")):
+                return True
+    return False
 
-    session_start = list(session_start) + [{
+
+def register_adhd_hook(data):
+    """Add the ADHD SessionStart hook. True if `data` was changed."""
+    if already_registered(data, "SessionStart", "adhd-always-on.sh"):
+        return False
+
+    session_start = list(event_hooks(data, "SessionStart")) + [{
         "matcher": "startup|resume|clear|compact",
         "hooks": [{
             "type": "command",
@@ -211,25 +231,85 @@ def register_adhd_hook(data):
             "statusMessage": "Checking ADHD always-on flag...",
         }],
     }]
-    set_session_start_hooks(data, session_start)
+    set_event_hooks(data, "SessionStart", session_start)
     return True
 
 
+def register_pm_check_hooks(data):
+    """Wire the pre-build PM check: detect build-shaped prompts, gate writes
+    until the check has run, and clear the marks on a fresh session.
+
+    Three separate registrations because they are three different events. Each
+    is added independently, so a partially-registered settings.json converges
+    instead of being skipped wholesale. True if `data` was changed.
+    """
+    changed = False
+
+    if not already_registered(data, "UserPromptSubmit", "pm-check-detect.sh"):
+        entries = list(event_hooks(data, "UserPromptSubmit")) + [{
+            "hooks": [{
+                "type": "command",
+                "command": pm_detect_command,
+                "timeout": 5,
+                "statusMessage": "Checking for a build request...",
+            }],
+        }]
+        set_event_hooks(data, "UserPromptSubmit", entries)
+        changed = True
+
+    if not already_registered(data, "PreToolUse", "pm-check-gate.sh"):
+        entries = list(event_hooks(data, "PreToolUse")) + [{
+            "matcher": "Write|Edit|MultiEdit",
+            "hooks": [{
+                "type": "command",
+                "command": pm_gate_command,
+                "timeout": 5,
+                "statusMessage": "Checking the pre-build gate...",
+            }],
+        }]
+        set_event_hooks(data, "PreToolUse", entries)
+        changed = True
+
+    if not already_registered(data, "SessionStart", "pm-check-reset.sh"):
+        entries = list(event_hooks(data, "SessionStart")) + [{
+            "matcher": "startup|resume|clear|compact",
+            "hooks": [{
+                "type": "command",
+                "command": pm_reset_command,
+                "timeout": 5,
+                "statusMessage": "Clearing pre-build marks...",
+            }],
+        }]
+        set_event_hooks(data, "SessionStart", entries)
+        changed = True
+
+    return changed
+
+
 def prune_missing_bundle_hooks(data):
-    """Drop SessionStart hooks pointing at a bundle script that no longer exists.
+    """Drop hooks pointing at a bundle script that no longer exists, across every
+    event this bundle manages. True if `data` was changed.
 
     A retired hook script disappears from ~/.claude on the next `git pull`, but
     its registration in settings.json doesn't — leaving every session start to
     fail on a missing command. Only the script a hook runs is tested, only when
     it sits under the bundle's own hooks directory, and only when that file is
     actually gone — so an operator's own hooks are never touched, arguments and
-    all. True if `data` was changed.
+    all.
     """
-    session_start = session_start_hooks(data)
+    return any(
+        # Listed first so `any` cannot short-circuit and skip later events.
+        [prune_event(data, event) for event in managed_events]
+    )
+
+
+def prune_event(data, event):
+    """Prune retired bundle hooks under one event. True if `data` was changed."""
+    entries = event_hooks(data, event)
     changed = False
     kept_entries = []
 
-    for entry in session_start:
+    for entry in entries:
         if not isinstance(entry, dict):
             kept_entries.append(entry)
             continue
@@ -244,7 +324,7 @@ def prune_missing_bundle_hooks(data):
             script = hook_script_path(hook)
             if (
                 script.startswith(hooks_dir)
-                and script != command
+                and script not in bundle_commands
                 and not os.path.exists(script)
             ):
                 dropped = True
@@ -265,7 +345,7 @@ def prune_missing_bundle_hooks(data):
         kept_entries.append(entry)
 
     if changed:
-        set_session_start_hooks(data, kept_entries)
+        set_event_hooks(data, event, kept_entries)
     return changed
 
 
@@ -322,9 +402,11 @@ def configure():
     changes = []
     warnings = []
     if prune_missing_bundle_hooks(data):
-        changes.append("  Cleaning up: SessionStart hooks for retired bundle scripts")
+        changes.append("  Cleaning up: hooks for retired bundle scripts")
     if register_adhd_hook(data):
         changes.append("  Registering: ADHD SessionStart hook")
+    if register_pm_check_hooks(data):
+        changes.append("  Registering: pre-build PM check hooks")
     if set_auto_permission_mode(data, warnings):
         changes.append("  Setting: auto as the default permission mode")
 
