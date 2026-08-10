@@ -1,10 +1,10 @@
-# Worker communications — send through the comms broker; raw OpenPhone is blocked
+# Worker communications — send through the comms broker; raw vendor APIs are blocked
 
 Any tool that sends a worker-facing message (SMS, two-way text, robocall) goes through
 **Traba's comms broker** via the worker-outreach API. The broker now covers both halves
 of a conversation — sending, and reading the worker's replies programmatically — so the
-raw OpenPhone/Quo API is **no longer an acceptable send path**: don't add new raw sends,
-and migrate existing ones. If the broker genuinely can't do what your project needs,
+raw vendor APIs (OpenPhone/Quo **and** Twilio) are **no longer acceptable send paths**:
+don't add new raw sends, and migrate existing ones. If the broker genuinely can't do what your project needs,
 raise it with the comms-platform team in #claudecodestuff instead of routing around it.
 
 ## Scope
@@ -60,18 +60,20 @@ Field notes:
 The older broker endpoint (`POST /communication/send-direct-two-way-sms`) still exists,
 but new projects should use the worker-outreach API, and existing callers should migrate.
 
-## Blocked route: the raw OpenPhone/Quo API
+## Blocked routes: the raw OpenPhone/Quo and Twilio APIs
 
-Direct sends via `POST https://api.openphone.com/v1/messages` are **blocked**. This used
-to be an acceptable fallback when the broker wasn't reachable; now that the
+Direct sends via `POST https://api.openphone.com/v1/messages` **or the Twilio API**
+(`api.twilio.com` / the `twilio` SDK's `messages.create`) are **blocked**. These used
+to be acceptable fallbacks when the broker wasn't reachable; now that the
 worker-outreach API covers both sending and reading replies, there is no gap left for
-the raw path to fill. Don't add new raw sends, and migrate existing callers to
-`POST /v1/worker-outreach/request`.
+a raw path to fill. Don't add new raw sends, and migrate existing callers to
+`POST /v1/worker-outreach/request`. (If your project was texting from its own Twilio
+number, the broker's shared two-way number replaces it — omit `outboundPhoneNumber`.)
 
-Why the raw path is out: it has none of the broker's safety rails — no opt-out
+Why the raw paths are out: they have none of the broker's safety rails — no opt-out
 suppression, no blocked-number handling, no dedup, no geo-gating, and no Traba-side
-audit record (the only trace lives in the vendor console). It also has a proven
-attribution failure mode: omit `userId` and OpenPhone credits the message to the
+audit record (the only trace lives in the vendor console). OpenPhone also has a proven
+attribution failure mode: omit `userId` and it credits the message to the
 **phone number's owner**, so an ownership change silently re-attributes history.
 
 > This actually happened: an owner change made **~155K automated hiring messages
@@ -81,9 +83,9 @@ attribution failure mode: omit `userId` and OpenPhone credits the message to the
 If the broker can't do what you need — a message type it doesn't support yet, or no
 OpsAuth path in your environment — that's a gap to raise with the comms-platform team
 in #claudecodestuff, not a license to go raw. For a legacy raw send that is still
-running while its migration lands, the old floor holds in the meantime: stamp the
-sender's `userId` on every payload, honor opt-outs you know about, and flag bulk sends
-you can't check opt-outs for.
+running while its migration lands, the old floor holds in the meantime: honor opt-outs
+you know about, flag bulk sends you can't check opt-outs for, and (OpenPhone) stamp the
+sender's `userId` on every payload.
 
 ## Reading replies
 
@@ -107,7 +109,7 @@ GET /v1/worker-communications/openphone-replies?workerId=<id>&sourceType=<YOUR_T
 Every worker message must trace to a real, intentional sender — a recruiter or a named
 bot user — so ownership changes never silently rewrite who "sent" thousands of messages.
 The broker guarantees that automatically, and layers opt-out suppression, blocked-number
-handling, dedup, geo-gating, and audit logging on top. The raw path was tolerated only
-while the broker couldn't cover reading replies; with both send and read endpoints live,
-even a raw send with a stamped `userId` preserves attribution alone and none of the
-other rails — so the broker is now the only sanctioned route.
+handling, dedup, geo-gating, and audit logging on top. The raw vendor paths were
+tolerated only while the broker couldn't cover reading replies; with both send and read
+endpoints live, even a raw send with attribution handled preserves that one property and
+none of the other rails — so the broker is now the only sanctioned route.
