@@ -4,8 +4,9 @@ Any tool that sends a worker-facing message (SMS, two-way text, robocall) goes t
 **Traba's comms broker** via the worker-outreach API. The broker now covers both halves
 of a conversation — sending, and reading the worker's replies programmatically — so the
 raw vendor APIs (OpenPhone/Quo **and** Twilio) are **no longer acceptable send paths**:
-don't add new raw sends, and migrate existing ones. If the broker genuinely can't do what your project needs,
-raise it with the comms-platform team in #claudecodestuff instead of routing around it.
+don't add new raw sends, and migrate existing ones. If the broker genuinely can't do
+what your project needs, raise it with the comms-platform team in #claudecodestuff
+instead of routing around it.
 
 ## Scope
 
@@ -67,8 +68,9 @@ Direct sends via `POST https://api.openphone.com/v1/messages` **or the Twilio AP
 to be acceptable fallbacks when the broker wasn't reachable; now that the
 worker-outreach API covers both sending and reading replies, there is no gap left for
 a raw path to fill. Don't add new raw sends, and migrate existing callers to
-`POST /v1/worker-outreach/request`. (If your project was texting from its own Twilio
-number, the broker's shared two-way number replaces it — omit `outboundPhoneNumber`.)
+`POST /v1/worker-outreach/request`. If your project was texting from its own Twilio
+number, the broker replaces it — but pick the destination by whether you need to read
+replies (see below), not by omitting `outboundPhoneNumber` reflexively.
 
 Why the raw paths are out: they have none of the broker's safety rails — no opt-out
 suppression, no blocked-number handling, no dedup, no geo-gating, and no Traba-side
@@ -103,6 +105,14 @@ GET /v1/worker-communications/openphone-replies?workerId=<id>&sourceType=<YOUR_T
 - Poll with the returned `nextCursor` (`since`/`afterId`).
 - One worker + one OpenPhone line = one thread: if multiple projects text the same worker
   on the same line, a reply belongs to the thread, not provably to your project.
+
+**This endpoint covers OpenPhone threads only.** So if your project needs to read
+replies programmatically — including a project migrating off its own Twilio number —
+send from an OpenPhone line (pass `outboundPhoneNumber`) and the replies come back
+here. Replies to Traba's shared two-way number land in Traba's two-way system rather
+than in your project, so needing programmatic replies on the shared number is a gap to
+raise with the comms-platform team in #claudecodestuff — not a reason to keep a raw
+Twilio path. Send-only projects can use the shared number and skip all of this.
 
 ## Rationale
 
