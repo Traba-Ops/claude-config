@@ -84,6 +84,8 @@ The CEO and CTO blocks are **interviews**, not "conversations" or "chats" — us
 
 **Who hosts what at Traba:** Neo roadmap and growth → Devin or Jake, or both. Neo technical deep dive → Micah or Moreno — both NYC, both in-person hosts (confirmed by Jeff 2026-08-09; a calendar timezone of America/Denver means nothing about where someone sits — verify location with Jeff, never infer it).
 
+**Fixed block durations (Jeff, 2026-08-09):** the Neo roadmap/growth segment (Devin/Jake), the staffing business/ops roadmap segment (Lauren), and the Neo technical deep dive are **always 30 minutes each** — don't stretch them to fill a gap; give spare minutes to lunch-adjacent buffer or own-time-at-a-desk instead. Lunch is always 45 minutes (never 60).
+
 **One host per working session, not two "to be safe."** Staffing a block with two people because both know the topic wastes an engineer's afternoon and gives the candidate a panel feel. Two is right only when you specifically want them to disagree in front of the candidate — a roadmap where the direction is genuinely contested. Otherwise one.
 
 Everything else is flexible. **Ask the candidate what they want from the day** and build the remaining slots around their answer — a roadmap conversation, a technical deep dive, team rituals, whatever they name. A late-stage candidate who tells you their agenda has handed you the whole plan; the only mistake left is not using it.
