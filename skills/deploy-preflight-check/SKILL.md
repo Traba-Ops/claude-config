@@ -142,13 +142,13 @@ git grep -niE "dev_mode|skip_auth|bypass_auth|mock_user|no_auth" -- apps/
 
 **[BLOCKER] Railway project under the Traba team; Postgres TCP proxy disabled.** Not verifiable from the repo — walk the operator through confirming both in the Railway dashboard (project → team ownership; database service → Settings → Networking) and get the answer back, don't just ask "is it fine?". Details in the deployment skill.
 
-**[BLOCKER] Worker-facing sends stamp attribution.** Prefer the comms broker via the worker-outreach API on the node backend (`POST /v1/worker-outreach/request` with a registered `sourceType` topic, authenticated as the acting recruiter). Raw OpenPhone/Quo sends are acceptable only with the sender's `userId` in every payload — an omitted `userId` silently attributes to the phone-number owner. Full policy: `~/.claude/docs/worker-comms-safety.md`.
+**[BLOCKER] Worker-facing sends go through the comms broker.** Sends route through the worker-outreach API on the node backend (`POST /v1/worker-outreach/request` with a registered `sourceType` topic, authenticated as the acting recruiter); replies are read via `GET /v1/worker-communications/openphone-replies`. Direct OpenPhone/Quo API sends in deployed code are blocked — migrate them to the broker (a still-running legacy send must at minimum stamp the sender's `userId`; an omitted `userId` silently attributes to the phone-number owner). Full policy: `~/.claude/docs/worker-comms-safety.md`.
 
 ```bash
 git grep -nE "api\.openphone\.com/v1/messages" -- apps/ scripts/
 ```
 
-Every hit is a send and must carry `userId` in the payload. Broker sends (`/v1/worker-outreach/request`, or the older `/communication/send-direct-two-way-sms`) handle attribution themselves, and prep calls (`/v1/users` lookups, list-building) are out of scope — never block prep work.
+Every hit in deployed code is a raw send and a blocker — the fix is migrating it to `/v1/worker-outreach/request`, not adding `userId`. Broker sends (`/v1/worker-outreach/request`, or the older `/communication/send-direct-two-way-sms`) handle attribution themselves, and prep calls (`/v1/users` lookups, list-building) are out of scope — never block prep work.
 
 **[advisory] CI safety net present.** `.github/workflows/` includes a gitleaks scan — operators push straight to main, so CI is the enforcement layer (`~/.claude/docs/security.md`).
 
