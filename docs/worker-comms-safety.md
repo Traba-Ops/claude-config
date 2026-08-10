@@ -18,24 +18,60 @@ One nuance: list-building is exactly where opt-out filtering belongs. If a suppr
 source is available to you, applying it while you build the list is part of doing the
 prep well — not a reason to refuse the prep.
 
-## Preferred route: the comms broker
+## Preferred route: the worker-outreach API (comms broker)
 
-**Send through the comms broker endpoint** on the Traba backend:
+**Send through the worker-outreach endpoint** on the Traba backend:
 
 ```
-POST /communication/send-direct-two-way-sms        (OpsAuth — authenticate as the acting recruiter)
-body: { phoneNumber, message, fromPhoneNumber? }
+POST /v1/worker-outreach/request        (OpsAuth — authenticate as the acting recruiter)
+body: {
+  "type": "OPS_SMS",
+  "workerId": "<id>",                   // or "ghostProfileId" for leads who haven't signed up
+  "smsBody": "...",
+  "sourceType": "<YOUR_TOPIC>",
+  "outboundPhoneNumber": "<E.164>"      // optional — your project's OpenPhone line
+}
 ```
 
-It routes through the central `CommunicationService`, which:
+It routes through the central comms broker, which:
 
 - **attributes the message to the authenticated ops user** (the real recruiter), not to
   whoever owns the phone number,
 - picks the provider (OpenPhone/Twilio),
-- applies opt-out suppression, dedup, geo-gating, and audit logging.
+- applies opt-out suppression, blocked-number handling, dedup, geo-gating, and audit
+  logging,
+- **logs every message against your project's topic** (`sourceType`).
 
 Authenticate the call as the recruiter (their OpsAuth token / `@traba.work` identity) and
 attribution is handled for you — you never touch a `userId`.
+
+Field notes:
+
+- **`sourceType` (topic):** each project registers its own topic with the comms-platform
+  team — it's a one-liner on their side; ask in Slack. Unregistered topics are
+  **rejected**; an omitted `sourceType` falls back to `OPS_MANUAL`, which loses
+  per-project attribution — register a topic instead.
+- **`outboundPhoneNumber`:** pass your project's OpenPhone line (E.164) and the message
+  sends from that line, landing in your existing OpenPhone thread with the worker. Omit
+  it and the send goes out from Traba's shared two-way number via Twilio.
+- **`ghostProfileId`** works in place of `workerId` for leads who haven't signed up.
+
+The older broker endpoint (`POST /communication/send-direct-two-way-sms`) still exists,
+but new projects should use the worker-outreach API, and existing callers should migrate.
+
+### Reading replies (OpenPhone)
+
+Replies can be fetched programmatically — no OpenPhone MCP or vendor-console scraping:
+
+```
+GET /v1/worker-communications/openphone-replies?workerId=<id>&sourceType=<YOUR_TOPIC>&limit=100
+```
+
+- `workerId` **or** `ghostProfileId` is required — you only get replies for people you're
+  actually handling.
+- Poll with the returned `nextCursor` (`since`/`afterId`).
+- One worker + one OpenPhone line = one thread: if multiple projects text the same worker
+  on the same line, a reply belongs to the thread, not provably to your project.
 
 ## Acceptable route: the raw OpenPhone/Quo API, with attribution stamped
 
