@@ -32,7 +32,7 @@ Determine each from the repo, not from memory:
 |---|---|
 | Queries the warehouse? | `data-proxy.traba.work`, `/query` + `X-App-Name`, SQL strings against `traba-app` |
 | Calls the node backend? | `ops-prod.traba.tech`, `getIdTokenClient`, a `*_SA_KEY` env var |
-| Sends worker-facing messages? | `api.openphone.com`, `/v1/worker-outreach/request`, `/communication/send-direct-two-way-sms` |
+| Sends worker-facing messages? | `api.openphone.com` (raw vendor), or the node-backend broker paths `/v1/worker-outreach/request`, `/communication/send-direct-two-way-sms` |
 | Has its own database? | Prisma schema, `DATABASE_URL` |
 | Vite frontend? | `apps/web/` with `import.meta.env` |
 
@@ -142,7 +142,7 @@ git grep -niE "dev_mode|skip_auth|bypass_auth|mock_user|no_auth" -- apps/
 
 **[BLOCKER] Railway project under the Traba team; Postgres TCP proxy disabled.** Not verifiable from the repo — walk the operator through confirming both in the Railway dashboard (project → team ownership; database service → Settings → Networking) and get the answer back, don't just ask "is it fine?". Details in the deployment skill.
 
-**[BLOCKER] Worker-facing sends stamp attribution.** Prefer the comms broker via the worker-outreach API (`POST /v1/worker-outreach/request` with a registered `sourceType` topic, authenticated as the acting recruiter). Raw OpenPhone/Quo sends are acceptable only with the sender's `userId` in every payload — an omitted `userId` silently attributes to the phone-number owner. Full policy: `~/.claude/docs/worker-comms-safety.md`.
+**[BLOCKER] Worker-facing sends stamp attribution.** Prefer the comms broker via the worker-outreach API on the node backend (`POST /v1/worker-outreach/request` with a registered `sourceType` topic, authenticated as the acting recruiter). Raw OpenPhone/Quo sends are acceptable only with the sender's `userId` in every payload — an omitted `userId` silently attributes to the phone-number owner. Full policy: `~/.claude/docs/worker-comms-safety.md`.
 
 ```bash
 git grep -nE "api\.openphone\.com/v1/messages" -- apps/ scripts/
