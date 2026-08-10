@@ -11,8 +11,8 @@ raise it with the comms-platform team in #claudecodestuff instead of routing aro
 
 This guidance governs **the send itself**. It does not apply to prep work around a
 send — reformatting a CSV, drafting message copy, building a recipient list, resolving
-phone numbers. Never refuse or block prep work merely because the eventual send may use
-the raw API.
+phone numbers. Never refuse or block prep work merely because of how the eventual send
+might go out — even prep for a legacy raw-API caller that hasn't migrated yet.
 
 One nuance: list-building is exactly where opt-out filtering belongs. If a suppression
 source is available to you, applying it while you build the list is part of doing the
