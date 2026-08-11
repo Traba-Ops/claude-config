@@ -49,3 +49,7 @@ After editing, open a fresh session and ask Claude to summarize the always-on ru
 ## Sources
 
 [IFScale](https://arxiv.org/abs/2507.11538) · [ManyIFEval](https://arxiv.org/abs/2509.21051) · [Chroma "Context Rot"](https://www.trychroma.com/research/context-rot) · [Claude Code best practices](https://code.claude.com/docs/en/best-practices) · [Claude Code memory](https://code.claude.com/docs/en/memory) · [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
+
+## Mirroring during the Bazaar transition
+
+The rules in `rules/` also live in `Traba-Ops/bazaar` at `data/traba/rules/` — and bazaar-migrated machines read *only* that copy. Until everyone is on bazaar, every rule change here must land in the bazaar copy too, in the same pass (open the sister PR alongside this one). The two copies have already drifted once; don't add to it.
