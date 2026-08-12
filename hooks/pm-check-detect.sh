@@ -14,6 +14,9 @@
 set -u
 
 state_dir="${TMPDIR:-/tmp}"
+# Guarded HOME: under `set -u` an unset HOME is fatal and dash exits 2, which
+# Claude Code reads as "erase the prompt" — inverting fail-open into fail-closed.
+claude_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
 
 
 payload=$(cat 2>/dev/null) || exit 0
@@ -85,7 +88,17 @@ done_flag="$state_dir/claude-pm-check-$session_id.done"
 : > "$pending" 2>/dev/null || exit 0
 
 
+# The completion path is published here because recovery needs it: when
+# CLAUDE_CODE_SESSION_ID disagrees with the hook's session id on --continue or
+# --resume, pm-check-done.sh cannot resolve the flag itself and the session is
+# stuck with no way to record a check it genuinely ran. Naming the recorder
+# script rather than `touch` is the difference between a documented recovery and
+# an advertised bypass.
+escaped_done=$(printf '%s' "$done_flag" | tr -d '[:cntrl:]' | sed 's/\\/\\\\/g; s/"/\\"/g')
+escaped_script=$(printf '%s' "$claude_dir/hooks/pm-check-done.sh" |
+  tr -d '[:cntrl:]' | sed 's/\\/\\\\/g; s/"/\\"/g')
+
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' \
-  "This looks like a request to build something. Before writing any code, invoke the pm-check skill — it runs Traba pre-build checks (does this already exist, should it be a Neutron capability instead, which data path, does the output land back in the system, who owns it) via Neutron. Write, Edit, MultiEdit, and NotebookEdit are BLOCKED until it has run. There is no way to skip it: run the check."
+  "This looks like a request to build something. Before writing any code, invoke the pm-check skill — it runs Traba pre-build checks (does this already exist, should it be a Neutron capability instead, which data path, does the output land back in the system, who owns it) via Neutron. Write, Edit, MultiEdit, and NotebookEdit are BLOCKED until it has run. There is no way to skip it: run the check. When it finishes it records itself; if that recording fails, re-run it as: '$escaped_script' '$escaped_done'"
 
 exit 0

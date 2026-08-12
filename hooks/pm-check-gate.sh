@@ -18,6 +18,8 @@
 set -u
 
 state_dir="${TMPDIR:-/tmp}"
+# Guarded HOME — see pm-check-detect.sh.
+claude_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
 
 
 payload=$(cat 2>/dev/null) || exit 0
@@ -71,7 +73,12 @@ done_flag="$state_dir/claude-pm-check-$session_id.done"
 [ -n "$(json_str agent_id)" ] && exit 0
 
 
+# Published for recovery, not as a bypass — see the note in pm-check-detect.sh.
+escaped_done=$(printf '%s' "$done_flag" | tr -d '[:cntrl:]' | sed 's/\\/\\\\/g; s/"/\\"/g')
+escaped_script=$(printf '%s' "$claude_dir/hooks/pm-check-done.sh" |
+  tr -d '[:cntrl:]' | sed 's/\\/\\\\/g; s/"/\\"/g')
+
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' \
-  "Blocked: this session asked to build something and the Traba PM check has not run. Invoke the pm-check skill first — it checks whether this already exists (Traba-Ops has over 100 repos and 67 Railway projects), whether it should be a Neutron capability rather than a new app, the data path, whether the output lands back in the system, and who owns it. The skill records completion itself when it finishes. There is no bypass — run the check."
+  "Blocked: this session asked to build something and the Traba PM check has not run. Invoke the pm-check skill first — it checks whether this already exists (Traba-Ops has over 100 repos and 67 Railway projects), whether it should be a Neutron capability rather than a new app, the data path, whether the output lands back in the system, and who owns it. The skill records completion itself when it finishes. There is no bypass — run the check. If the recording fails, re-run it as: '$escaped_script' '$escaped_done'"
 
 exit 0

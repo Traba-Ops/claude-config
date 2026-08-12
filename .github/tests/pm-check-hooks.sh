@@ -99,6 +99,8 @@ case "$out" in *"no way to skip"*) r=0 ;; *) r=1 ;; esac
 check "injected context states there is no way to skip" $r "got: $out"
 case "$out" in *touch*) r=1 ;; *) r=0 ;; esac
 check "injected context does not hand out a touch bypass" $r "got: $out"
+case "$out" in *pm-check-done.sh*"$(done_for $SID)"*) r=0 ;; *) r=1 ;; esac
+check "injected context names the recorder and the exact path for recovery" $r "got: $out"
 
 # Regression guard for the bug this whole round exists to fix. The field is
 # `prompt`; a hook reading `prompt_text` gets nothing and the gate never arms.
@@ -216,6 +218,8 @@ case "$out" in *"no bypass"*) r=0 ;; *) r=1 ;; esac
 check "the deny message states there is no bypass" $r "got: $out"
 case "$out" in *touch*) r=1 ;; *) r=0 ;; esac
 check "the deny message does not hand out a touch bypass" $r "got: $out"
+case "$out" in *pm-check-done.sh*"$(done_for $SID)"*) r=0 ;; *) r=1 ;; esac
+check "the deny message names the recorder and the exact path for recovery" $r "got: $out"
 
 fresh g2
 out=$(run_hook "$gate" "$(pretool_payload "")")
