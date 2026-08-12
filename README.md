@@ -1,5 +1,12 @@
 # Prometheus Framework
 
+> **Content is frozen — author in the [Bazaar](https://github.com/Traba-Ops/bazaar).**
+> This repo's skills, rules, and hooks are now a generated mirror of Traba-Ops/bazaar;
+> a CI check rejects direct content PRs here. Land changes in the bazaar
+> (`data/traba`, `data/teams/<team>`, or `data/people/<you>`) and the mirror brings
+> them here automatically. Existing installs keep updating as before; new machines
+> should install the Bazaar instead (`curl -fsSL https://relay.traba.work/install/bazaar | bash`).
+
 A framework for non-engineering teams to build and deploy their own tools using Claude. You get a sandbox with guardrails, and you ship when you're ready.
 
 ## The Mission: Field → Core

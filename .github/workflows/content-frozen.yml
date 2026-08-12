@@ -1,0 +1,20 @@
+name: Content frozen — author in the Bazaar
+
+# claude-config is now a generated downstream mirror of Traba-Ops/bazaar.
+# Content changes land there and arrive here automatically via the mirror
+# workflow (which pushes straight to main, so it never trips this check).
+
+on:
+  pull_request:
+    paths:
+      - "skills/**"
+      - "rules/**"
+      - "hooks/**"
+
+jobs:
+  reject:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::claude-config content is frozen. This repo is a generated mirror of Traba-Ops/bazaar — land your change there (data/traba, data/teams/<team>, or data/people/<you>) and the mirror will bring it here automatically. See Traba-Ops/bazaar/docs/mirroring.md."
+          exit 1
