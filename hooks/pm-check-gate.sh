@@ -18,16 +18,7 @@
 set -u
 
 state_dir="${TMPDIR:-/tmp}"
-# HOME is guarded: under `set -u` an unset HOME is fatal, and dash exits 2 —
-# which Claude Code reads as "erase the prompt" (UserPromptSubmit) or "block the
-# tool call" (PreToolUse), inverting the fail-open contract into a silent
-# fail-closed. Fires under systemd units, containers, and `env -i` wrappers.
-claude_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
 
-# Same opt-outs as the detector, checked again here: a session that opted out
-# mid-flight should stop being gated immediately.
-[ -f "$claude_dir/.pm-check-off" ] && exit 0
-[ "${CLAUDE_PM_CHECK:-}" = "off" ] && exit 0
 
 payload=$(cat 2>/dev/null) || exit 0
 
@@ -79,14 +70,8 @@ done_flag="$state_dir/claude-pm-check-$session_id.done"
 #     main-thread case, that is this assumption breaking, not a flaky test.
 [ -n "$(json_str agent_id)" ] && exit 0
 
-# Control characters are invalid raw inside a JSON string, so drop them rather
-# than escape them — a malformed line makes Claude Code discard the whole output,
-# which here means the deny silently becomes an allow.
-escaped_done=$(printf '%s' "$done_flag" |
-  tr -d '[:cntrl:]' |
-  sed 's/\\/\\\\/g; s/"/\\"/g')
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' \
-  "Blocked: this session asked to build something and the Traba PM check has not run. Invoke the pm-check skill first — it checks whether this already exists (Traba-Ops has over 100 repos and 67 Railway projects), whether it should be a Neutron capability rather than a new app, the data path, whether the output lands back in the system, and who owns it. The skill records completion itself. To proceed without it, state why in one line and run: touch '$escaped_done'"
+  "Blocked: this session asked to build something and the Traba PM check has not run. Invoke the pm-check skill first — it checks whether this already exists (Traba-Ops has over 100 repos and 67 Railway projects), whether it should be a Neutron capability rather than a new app, the data path, whether the output lands back in the system, and who owns it. The skill records completion itself when it finishes. There is no bypass — run the check."
 
 exit 0

@@ -14,16 +14,7 @@
 set -u
 
 state_dir="${TMPDIR:-/tmp}"
-# HOME is guarded: under `set -u` an unset HOME is fatal, and dash exits 2 —
-# which Claude Code reads as "erase the prompt" (UserPromptSubmit) or "block the
-# tool call" (PreToolUse), inverting the fail-open contract into a silent
-# fail-closed. Fires under systemd units, containers, and `env -i` wrappers.
-claude_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
 
-# Global opt-out, so the gate is a guardrail and not a wall. A documented,
-# deliberate bypass beats people uninstalling the bundle to get work done.
-[ -f "$claude_dir/.pm-check-off" ] && exit 0
-[ "${CLAUDE_PM_CHECK:-}" = "off" ] && exit 0
 
 payload=$(cat 2>/dev/null) || exit 0
 
@@ -93,16 +84,8 @@ done_flag="$state_dir/claude-pm-check-$session_id.done"
 
 : > "$pending" 2>/dev/null || exit 0
 
-# Backslashes and double quotes would break the JSON string; a raw control
-# character (a tab in TMPDIR) is also invalid inside a JSON string and is
-# dropped rather than escaped, since it cannot survive the shell `touch` this
-# path is pasted into anyway. Paths here are a temp dir plus a UUID, but a
-# malformed line would make Claude Code discard the whole hook output.
-escaped_done=$(printf '%s' "$done_flag" |
-  tr -d '[:cntrl:]' |
-  sed 's/\\/\\\\/g; s/"/\\"/g')
 
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' \
-  "This looks like a request to build something. Before writing any code, invoke the pm-check skill — it runs Traba pre-build checks (does this already exist, should it be a Neutron capability instead, which data path, does the output land back in the system, who owns it) via Neutron. Write, Edit, MultiEdit, and NotebookEdit are BLOCKED until it has run. If the check genuinely does not apply, say why in one line, then run: touch '$escaped_done'"
+  "This looks like a request to build something. Before writing any code, invoke the pm-check skill — it runs Traba pre-build checks (does this already exist, should it be a Neutron capability instead, which data path, does the output land back in the system, who owns it) via Neutron. Write, Edit, MultiEdit, and NotebookEdit are BLOCKED until it has run. There is no way to skip it: run the check."
 
 exit 0

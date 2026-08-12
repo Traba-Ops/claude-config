@@ -95,8 +95,10 @@ out=$(run_hook "$detect" "$(prompt_payload "build me a dashboard for shift fill 
 check "build-shaped prompt marks the session pending" $?
 case "$out" in *'"additionalContext"'*) r=0 ;; *) r=1 ;; esac
 check "build-shaped prompt injects additionalContext" $r "got: $out"
-case "$out" in *"$(done_for $SID)"*) r=0 ;; *) r=1 ;; esac
-check "injected context carries the absolute completion path" $r "got: $out"
+case "$out" in *"no way to skip"*) r=0 ;; *) r=1 ;; esac
+check "injected context states there is no way to skip" $r "got: $out"
+case "$out" in *touch*) r=1 ;; *) r=0 ;; esac
+check "injected context does not hand out a touch bypass" $r "got: $out"
 
 # Regression guard for the bug this whole round exists to fix. The field is
 # `prompt`; a hook reading `prompt_text` gets nothing and the gate never arms.
@@ -183,16 +185,19 @@ run_hook "$detect" "$(prompt_payload "$big")" >/dev/null
 [ -f "$(pending_for $SID)" ]
 check "a 400KB prompt still arms the gate" $?
 
+# There is deliberately no opt-out. Both of these used to disable the gate; they
+# are kept as tests so a future re-introduction has to be a conscious change to
+# an assertion rather than a quiet line added back to a hook.
 fresh d8
 : > "$claude_home/.pm-check-off"
 run_hook "$detect" "$(prompt_payload "build me a dashboard")" >/dev/null
-[ ! -f "$(pending_for $SID)" ]
-check "the .pm-check-off flag disables the detector" $?
+[ -f "$(pending_for $SID)" ]
+check "a stale .pm-check-off flag does NOT disable the detector" $?
 
 fresh d9
 out=$(CLAUDE_PM_CHECK=off run_hook "$detect" "$(prompt_payload "build me a dashboard")")
-[ ! -f "$(pending_for $SID)" ]
-check "CLAUDE_PM_CHECK=off disables the detector" $?
+[ -f "$(pending_for $SID)" ]
+check "CLAUDE_PM_CHECK=off does NOT disable the detector" $?
 
 fresh d10
 : > "$(done_for $SID)"
@@ -207,8 +212,10 @@ fresh g1
 out=$(run_hook "$gate" "$(pretool_payload "")")
 case "$out" in *'"permissionDecision":"deny"'*) r=0 ;; *) r=1 ;; esac
 check "a pending session denies Write" $r "got: $out"
-case "$out" in *"$(done_for $SID)"*) r=0 ;; *) r=1 ;; esac
-check "the deny message carries the absolute completion path" $r "got: $out"
+case "$out" in *"no bypass"*) r=0 ;; *) r=1 ;; esac
+check "the deny message states there is no bypass" $r "got: $out"
+case "$out" in *touch*) r=1 ;; *) r=0 ;; esac
+check "the deny message does not hand out a touch bypass" $r "got: $out"
 
 fresh g2
 out=$(run_hook "$gate" "$(pretool_payload "")")
@@ -234,8 +241,8 @@ fresh g5
 : > "$(pending_for $SID)"
 : > "$claude_home/.pm-check-off"
 out=$(run_hook "$gate" "$(pretool_payload "")")
-[ -z "$out" ]
-check "the .pm-check-off flag lifts the gate mid-session" $?
+case "$out" in *'"permissionDecision":"deny"'*) r=0 ;; *) r=1 ;; esac
+check "a stale .pm-check-off flag does NOT lift the gate" $r "got: $out"
 
 # A PreToolUse payload embeds the file being written, so an unbounded scan makes
 # every Write in every session pay for the file's size — org-wide, on writes

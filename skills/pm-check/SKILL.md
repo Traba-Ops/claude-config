@@ -149,14 +149,13 @@ Not authed, connector missing, or it times out past a couple of minutes: **say s
 do the step-3 GitHub search yourself, and proceed.** A pre-build check that strands a
 session gets switched off, and a stranded session is worse than an unchecked build.
 
-## Escape hatch
+## There is no bypass
 
-`CLAUDE_PM_CHECK=off` disables the gate entirely, as does the flag file:
+The gate lifts when the check has actually run and `pm-check-done.sh` has recorded it.
+There is no opt-out flag and no environment variable. If you think the check does not
+apply to what you are doing, run it anyway — it costs a few seconds, and on a genuine
+non-build it returns nothing and gets out of the way.
 
-```sh
-touch "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.pm-check-off"
-```
-
-That is the path both hooks actually resolve — `~/.claude/.pm-check-off` is only correct
-for operators who have not set `CLAUDE_CONFIG_DIR`. Deliberate and documented beats
-people uninstalling the bundle to get work done.
+The one case that is not a bypass: if Neutron is unreachable, follow the section above —
+say so plainly, do the GitHub search yourself, and record completion. The check having
+been attempted honestly is the bar, not the check having succeeded.
