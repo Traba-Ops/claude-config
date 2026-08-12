@@ -6,7 +6,7 @@ description: Run Traba's pre-build checks before writing code for anything new �
 
 # pm-check
 
-Traba has 96 repos in the Traba-Ops org and 67 Railway projects. Inside them are six
+Traba has over 100 repos in the Traba-Ops org and 67 Railway projects. Inside them are six
 separate `daily-recap-agent` repos, three shift-readiness SMS tools, three copstab
 dashboards, four NFI trackers, two offer-letter generators. Nobody did anything wrong —
 they had no way to know.
@@ -38,37 +38,39 @@ Written as the outcome, not the implementation. *"A daily Slack summary of a rep
 calls"* — not *"a Node script with a cron."* The search matches on intent, so an
 implementation-flavoured description finds nothing.
 
-### 2. Ask Neutron
+### 2. Run the check
 
-Call `mcp__claude_ai_Neutron__ask_neutron` with a prompt shaped like:
+Call `mcp__claude_ai_Neutron__verify_build_request`:
 
 ```
-I am about to build the following. Run the pre-build verification and report back.
-
-WHAT: <one-sentence outcome>
-KIND: <app | dashboard/report | Neutron workflow | Neutron agent | recipe | script | integration>
-DATA: <what Traba data it reads or writes, or "none">
-CADENCE: <one-off | on demand | hourly | daily | weekly | event-driven>
-
-Tell me:
-1. Does something already cover this? Name it with an id if so.
-2. Should this be a Neutron capability (an action, a workflow, or just asking you)
-   rather than a new app?
-3. What is missing before it could work — connectors, tools, data?
-4. What should I ask the requester before building?
+goalKind:    WORKFLOW_OR_JOB | DASHBOARD_OR_REPORT | RECIPE
+requestText: <the outcome, in one sentence, from step 1>
 ```
 
-Then poll `mcp__claude_ai_Neutron__get_neutron_result` with the returned `runId`. It holds
-up to ~25s per call — call it again immediately if it says still working, do not sleep.
+Pick the closest `goalKind` — `WORKFLOW_OR_JOB` for an automation, agent, script or
+schedule; `DASHBOARD_OR_REPORT` for a chart, dashboard, report, or an app whose point is
+showing data; `RECIPE` for a data-pipeline recipe. There is no goal kind for "a standalone
+app" yet, so pick the one closest to what it *does*.
 
-**Neutron runs its own Oracle check** (`verify_automation_request`) when the request is
-build-shaped, so the verdict comes back inside its answer.
+It returns in a few seconds — no `runId`, no polling — with a decision (`EXISTS`, `REUSE`,
+`NEW_AUTOMATION`, `INCONCLUSIVE`), the matched thing, and an `instruction` field. **Follow
+the `instruction`.**
+
+If it comes back `ran: false`, the check did not run — database down, Oracle switched off,
+or an error. Say so in one line and carry on with the steps below; do not report the check
+as done.
+
+Use `ask_neutron` only if `verify_build_request` is not in your tool list — it is the older
+path, costs a full metered Neutron run, and returns prose you have to interpret rather than
+a verdict.
 
 ### 3. Cover what Neutron cannot see
 
-Oracle's evidence sources are Neutron-internal — workflows, scheduled jobs, recipes,
-dashboards, feature registry. It does **not** see the Traba-Ops GitHub org or Railway. So
-for an app or script, also check those yourself:
+Oracle searches Neutron's own objects — workflows, scheduled jobs, recipes, dashboards,
+the ops-console feature registry — plus the Traba-Ops repo manifest once that evidence
+source is live (the-matrix#4371). It does **not** see Railway at all, and the repo
+manifest is a periodic snapshot rather than a live read. So for an app or script, search
+GitHub yourself too — it costs one command and catches anything newer than the snapshot:
 
 ```sh
 gh search repos --owner Traba-Ops "<two or three keywords>" --limit 20
@@ -91,11 +93,16 @@ Neutron can find prior art and routing. It cannot know these — ask the request
 
 These are not questions — they are conditions. Say plainly if one is violated:
 
-- **Worker-facing SMS, two-way text, or robocall goes through the comms broker**
-  (`POST /communication/send-direct-two-way-sms`, as the acting recruiter). It carries
-  sender attribution, opt-out suppression, dedup, geo-gating, and audit. Raw OpenPhone/Quo
-  only when the broker is unreachable — and then stamp the sender's `userId`, or the
-  message is silently attributed to whoever owns the phone number.
+- **Worker-facing SMS, two-way text, or robocall goes through a sanctioned, attributed
+  path — and which one depends on the line.** General worker outreach goes through the
+  comms broker: `POST /v1/worker-outreach/request` with `type: OPS_SMS`, recipients by
+  `workerId` or `ghostProfileId` (raw phone numbers are rejected), authenticated as the
+  acting recruiter. It carries sender attribution, opt-out suppression, blocked numbers,
+  dedup, geo-gating, and audit. Sending **from** an OpenPhone/Quo line uses
+  `propose_send_openphone_sms` instead — the broker's delivery is Twilio-backed and
+  cannot send from an OpenPhone number. An ad-hoc unattributed send is never acceptable.
+  (`POST /communication/send-direct-two-way-sms` is a **removed** endpoint; if you see it
+  quoted anywhere, that doc is stale.)
 - **Traba data via sanctioned paths only** — bq-auth proxy for BigQuery, allow-listed
   service accounts for the node backend. Never ad-hoc GCP credentials.
 - **No deploy without auth** — `@traba.work` enforced server-side.

@@ -87,6 +87,6 @@ escaped_done=$(printf '%s' "$done_flag" |
   sed 's/\\/\\\\/g; s/"/\\"/g')
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' \
-  "Blocked: this session asked to build something and the Traba PM check has not run. Invoke the pm-check skill first — it checks whether this already exists (Traba-Ops has 96 repos and 67 Railway projects), whether it should be a Neutron capability rather than a new app, the data path, whether the output lands back in the system, and who owns it. The skill records completion itself. To proceed without it, state why in one line and run: touch '$escaped_done'"
+  "Blocked: this session asked to build something and the Traba PM check has not run. Invoke the pm-check skill first — it checks whether this already exists (Traba-Ops has over 100 repos and 67 Railway projects), whether it should be a Neutron capability rather than a new app, the data path, whether the output lands back in the system, and who owns it. The skill records completion itself. To proceed without it, state why in one line and run: touch '$escaped_done'"
 
 exit 0
