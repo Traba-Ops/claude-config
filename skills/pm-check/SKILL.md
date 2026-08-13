@@ -67,17 +67,28 @@ a verdict.
 ### 3. Cover what Neutron cannot see
 
 Oracle searches Neutron's own objects — workflows, scheduled jobs, recipes, dashboards,
-the ops-console feature registry — plus the Traba-Ops repo manifest once that evidence
-source is live (the-matrix#4371). It does **not** see Railway at all, and the repo
-manifest is a periodic snapshot rather than a live read. So for an app or script, search
-GitHub yourself too — it costs one command and catches anything newer than the snapshot:
+the ops-console feature registry — plus a committed manifest of both GitHub orgs
+(`Traba-Ops` and `trabapro`) carrying Railway deployment state, Linear tickets, and the
+Coda-backed knowledge base. A hit marked `(deployed: …)` is not just source: something is
+running under that name.
+
+Two gaps to cover yourself:
+
+**The repo manifest is a periodic snapshot, not a live read.** Anything created since the
+last regeneration is invisible to it. One command catches that, and it is worth running for
+any app or script:
 
 ```sh
-gh search repos --owner Traba-Ops "<two or three keywords>" --limit 20
+gh search repos --owner Traba-Ops --owner trabapro "<two or three keywords>" --limit 20
 ```
 
 Include archived repos in what you consider — *"we built this and killed it"* is stronger
 prior art than an active project, not weaker.
+
+**Slack is not searched.** Slack's `search.messages` needs a user token that no deploy
+holds yet, so the source ships switched off. If the request sounds like something a team
+would have argued about — a recurring report, a metric definition, anything with an owner
+dispute in its past — search Slack yourself before concluding nothing exists.
 
 ### 4. Answer what Neutron cannot infer
 
