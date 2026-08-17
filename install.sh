@@ -132,11 +132,51 @@ if command -v python3 &> /dev/null; then
 import json, os, pathlib, shlex, shutil, tempfile
 
 claude_dir = os.environ["CLAUDE_DIR"]
-settings = pathlib.Path(claude_dir) / "settings.json"
+# Resolve symlinks before anything reads, backs up, or writes this path.
+# `os.replace` swaps the path it is handed, so on a settings.json symlinked into
+# a dotfiles checkout — stow, chezmoi, or by hand, and a pattern this bundle
+# already expects for hooks/ (see the note above about it being symlinked
+# elsewhere) — the write would replace the LINK with a regular file. The
+# operator's real file is silently orphaned, their dotfiles repo stops affecting
+# their config, and the .bak lands in the wrong directory so it does not point
+# back either. Resolving first makes the write, the backup, and the temp file all
+# land next to the real file. realpath on a not-yet-existing path is a no-op, so
+# a fresh install is unaffected.
+settings = pathlib.Path(os.path.realpath(pathlib.Path(claude_dir) / "settings.json"))
 # rstrip so a CLAUDE_CONFIG_DIR with a trailing slash still yields the same
 # prefix that registrations were written with (no `//hooks/`).
 hooks_dir = claude_dir.rstrip("/") + "/hooks/"
 command = f"{hooks_dir}adhd-always-on.sh"
+pm_detect_command = f"{hooks_dir}pm-check-detect.sh"
+pm_gate_command = f"{hooks_dir}pm-check-gate.sh"
+pm_reset_command = f"{hooks_dir}pm-check-reset.sh"
+
+# Opt-in marker for the PreToolUse write gate. The detector and the reset hook
+# ship to everyone — those only nudge, and nobody can be blocked by them — while
+# the hook that actually denies Write/Edit is registered only for operators who
+# created this file. The gate is local `stat` calls with no network in it, so no
+# server-side flag can turn it off once it is registered; install time is the
+# only control point, which is why removing the marker and re-running has to
+# deregister it (see `remove_hook`). Making the gate the default later is a
+# one-line change: drop the condition in `register_pm_check_hooks`.
+pm_enforce_marker = claude_dir.rstrip("/") + "/.pm-check-enforce"
+
+# Every script this bundle registers. The prune below deletes registrations whose
+# script is gone from hooks/ — so a command missing from this set that is
+# temporarily absent from disk would be pruned and then re-added on the next
+# install, churning settings.json. Keep it in sync with what gets registered.
+# `pm_gate_command` belongs here even though it is registered conditionally: the
+# script ships to everyone either way, so prune must leave it alone and let
+# `remove_hook` be the only thing that deregisters it.
+bundle_commands = {
+    command,
+    pm_detect_command,
+    pm_gate_command,
+    pm_reset_command,
+}
+
+# The hook events this bundle manages. Prune only ever looks at these.
+managed_events = ("SessionStart", "UserPromptSubmit", "PreToolUse")
 
 
 class Skip(Exception):
@@ -167,42 +207,133 @@ def hook_script_path(hook):
     return argv[0]
 
 
-def session_start_hooks(data):
-    """The SessionStart entries in `data`, validated."""
+def warn(warnings, message):
+    """Record a warning once. Several steps read the same event, and an operator
+    does not need to be told three times that one key has the wrong shape."""
+    line = f"  WARNING: {message}"
+    if line not in warnings:
+        warnings.append(line)
+
+
+def event_hooks(data, event, warnings):
+    """The entries for one hook event in `data`, or None if unusable.
+
+    Returning None rather than raising is deliberate: a weird shape under one
+    event must not abort the whole pass. Every settings mutation here degrades
+    independently — the operator with an odd `hooks.PreToolUse` still gets the
+    ADHD hook, the prune on the other events, and auto mode.
+    """
     hooks = data.get("hooks", {})
     if not isinstance(hooks, dict):
-        raise Skip(f'"hooks" in {settings} is not an object')
+        warn(warnings, f'"hooks" in {settings} is not an object, so hook '
+                       "registration and cleanup were skipped.")
+        return None
 
-    session_start = hooks.get("SessionStart", [])
-    if not isinstance(session_start, list):
-        raise Skip(f'"hooks.SessionStart" in {settings} is not a list')
+    entries = hooks.get(event, [])
+    if not isinstance(entries, list):
+        warn(warnings, f'"hooks.{event}" in {settings} is not a list, so hooks '
+                       f"for {event} were left alone.")
+        return None
 
-    return session_start
+    return entries
 
 
-def set_session_start_hooks(data, session_start):
+def set_event_hooks(data, event, entries):
     hooks = dict(data.get("hooks", {}))
-    hooks["SessionStart"] = session_start
+    hooks[event] = entries
     data["hooks"] = hooks
 
 
-def register_adhd_hook(data):
-    """Add the ADHD SessionStart hook. True if `data` was changed."""
-    session_start = session_start_hooks(data)
+def already_registered(entries, script):
+    """True if some entry in `entries` runs exactly `script`.
 
-    for entry in session_start:
+    Compared against argv[0], not by substring. A substring test matches things
+    that are not this registration at all — an operator's own
+    `hooks/other/my-pm-check-gate.sh`, a `logger --tag pm-check-detect.sh`, or the
+    `~/.claude/...` spelling of a hook while the installer is writing
+    `/opt/claude/...` paths. Any of those made the installer believe a hook was
+    present, skip it forever, and still report success: a permanently unregistered
+    write gate that never self-heals.
+    """
+    for entry in entries:
         if not isinstance(entry, dict):
             continue
         entry_hooks = entry.get("hooks")
         if not isinstance(entry_hooks, list):
             continue
         for hook in entry_hooks:
-            if not isinstance(hook, dict):
-                continue
-            if "adhd-always-on.sh" in str(hook.get("command", "")):
-                return False  # already registered
+            if hook_script_path(hook) == script:
+                return True
+    return False
 
-    session_start = list(session_start) + [{
+
+def register_hook(data, event, script, entry, warnings):
+    """Add one hook registration unless it is already there, or the event's
+    shape is unusable. True if `data` was changed."""
+    entries = event_hooks(data, event, warnings)
+    if entries is None or already_registered(entries, script):
+        return False
+    set_event_hooks(data, event, list(entries) + [entry])
+    return True
+
+
+def remove_hook(data, event, script, warnings):
+    """Drop every registration of exactly `script` under `event`. True if `data`
+    was changed.
+
+    The counterpart to `register_hook`, and the kill switch for the write gate: a
+    hook the installer can only ever add is not opt-in, it is one-way. Deleting
+    the opt-in marker and re-running has to actually deregister the gate, on a
+    machine where it is already wired up.
+
+    Matched on argv[0], exactly, like `already_registered` — an operator's own
+    `hooks/other/my-pm-check-gate.sh` is a different hook and stays.
+    """
+    entries = event_hooks(data, event, warnings)
+    if entries is None:
+        return False
+
+    changed = False
+    kept_entries = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            kept_entries.append(entry)
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            kept_entries.append(entry)
+            continue
+
+        kept_hooks = [h for h in entry_hooks if hook_script_path(h) != script]
+        if len(kept_hooks) == len(entry_hooks):
+            kept_entries.append(entry)  # untouched — leave it exactly as it came
+            continue
+
+        changed = True
+        if not kept_hooks:
+            continue  # the removal emptied it; drop the entry too
+        entry = dict(entry)
+        entry["hooks"] = kept_hooks
+        kept_entries.append(entry)
+
+    if changed:
+        set_event_hooks(data, event, kept_entries)
+    return changed
+
+
+def enforcement_opted_in():
+    """True when this machine has opted in to the write gate.
+
+    Plain `exists` on purpose: anything that is not provably a real, reachable
+    marker means no gate, and "no gate" is the direction that cannot block
+    anyone.
+    """
+    return os.path.exists(pm_enforce_marker)
+
+
+def register_adhd_hook(data, warnings):
+    """Add the ADHD SessionStart hook. True if `data` was changed."""
+    return register_hook(data, "SessionStart", command, {
         "matcher": "startup|resume|clear|compact",
         "hooks": [{
             "type": "command",
@@ -210,26 +341,123 @@ def register_adhd_hook(data):
             "timeout": 5,
             "statusMessage": "Checking ADHD always-on flag...",
         }],
-    }]
-    set_session_start_hooks(data, session_start)
-    return True
+    }, warnings)
 
 
-def prune_missing_bundle_hooks(data):
-    """Drop SessionStart hooks pointing at a bundle script that no longer exists.
+def register_pm_check_hooks(data, warnings):
+    """Wire the pre-build PM check: detect build-shaped prompts, gate writes
+    until the check has run, and clear the marks on a fresh session.
+
+    Three separate registrations because they are three different events. Each
+    is added independently, so a partially-registered settings.json converges
+    instead of being skipped wholesale.
+
+    Detect and reset go to everyone; the gate goes only to machines carrying the
+    opt-in marker, and is removed again from machines that no longer carry it.
+
+    Returns (registered, removed) hook names, so the installer reports what
+    actually landed. Saying "pre-build PM check hooks" when one of three was
+    written is how a half-wired gate goes unnoticed.
+    """
+    # `UserPromptSubmit` takes no matcher — it always fires.
+    added = []
+    removed = []
+    if register_hook(data, "UserPromptSubmit", pm_detect_command, {
+        "hooks": [{
+            "type": "command",
+            "command": pm_detect_command,
+            "timeout": 5,
+            "statusMessage": "Checking for a build request...",
+        }],
+    }, warnings):
+        added.append("detect")
+
+    # A matcher of plain names is an exact-string list, not a regex, so `Edit`
+    # does not incidentally cover `NotebookEdit` — it has to be named.
+    if enforcement_opted_in():
+        if register_hook(data, "PreToolUse", pm_gate_command, {
+            "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+            "hooks": [{
+                "type": "command",
+                "command": pm_gate_command,
+                "timeout": 5,
+                "statusMessage": "Checking the pre-build gate...",
+            }],
+        }, warnings):
+            added.append("gate")
+    elif remove_hook(data, "PreToolUse", pm_gate_command, warnings):
+        removed.append("gate")
+
+    # `fork` is listed because the hook exempts forked sessions by name, and it
+    # cannot exempt a source it never receives. Without it the hook simply never
+    # runs on a fork, which reaches the same outcome by accident and skips the
+    # `CLAUDE_PM_CHECK_DONE` export the forked session needs to clear its gate.
+    if register_hook(data, "SessionStart", pm_reset_command, {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [{
+            "type": "command",
+            "command": pm_reset_command,
+            "timeout": 5,
+            "statusMessage": "Clearing pre-build marks...",
+        }],
+    }, warnings):
+        added.append("reset")
+
+    return added, removed
+
+
+def definitely_absent(path):
+    """True only when `path` is provably not there.
+
+    `os.path.exists` is the wrong test for a prune. It follows symlinks and it
+    answers False for anything it cannot stat, so a hook symlinked into a
+    dotfiles checkout, sitting on an unmounted drive, or under a directory the
+    installer cannot traverse looks identical to a deleted one — and pruning it
+    silently deregisters an operator's working hook across three events. `lstat`
+    tests the link itself, and every error other than "no such file" is read as
+    "keep it".
+    """
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False  # unreadable parent, dead mount, anything else — assume live
+    return False
+
+
+def prune_missing_bundle_hooks(data, warnings):
+    """Drop hooks pointing at a bundle script that no longer exists, across every
+    event this bundle manages. True if `data` was changed.
 
     A retired hook script disappears from ~/.claude on the next `git pull`, but
     its registration in settings.json doesn't — leaving every session start to
     fail on a missing command. Only the script a hook runs is tested, only when
     it sits under the bundle's own hooks directory, and only when that file is
-    actually gone — so an operator's own hooks are never touched, arguments and
-    all. True if `data` was changed.
+    provably gone — so an operator's own hooks are never touched, arguments and
+    all.
+
+    Returns the command strings it removed, so the installer can name them. The
+    single `.bak` is overwritten by the next run that changes anything, so an
+    operator who does not notice a wrong prune before their next update has lost
+    the only copy. Printing each removed command is what makes it noticeable.
     """
-    session_start = session_start_hooks(data)
+    removed = []
+    for event in managed_events:
+        removed.extend(prune_event(data, event, warnings))
+    return removed
+
+
+def prune_event(data, event, warnings):
+    """Prune retired bundle hooks under one event. Returns what it removed."""
+    entries = event_hooks(data, event, warnings)
+    if entries is None:
+        return []
+    removed = []
     changed = False
     kept_entries = []
 
-    for entry in session_start:
+    for entry in entries:
         if not isinstance(entry, dict):
             kept_entries.append(entry)
             continue
@@ -244,10 +472,11 @@ def prune_missing_bundle_hooks(data):
             script = hook_script_path(hook)
             if (
                 script.startswith(hooks_dir)
-                and script != command
-                and not os.path.exists(script)
+                and script not in bundle_commands
+                and definitely_absent(script)
             ):
                 dropped = True
+                removed.append(f"{event}: {str(hook.get('command', '')).strip()}")
                 continue
             kept_hooks.append(hook)
 
@@ -265,8 +494,8 @@ def prune_missing_bundle_hooks(data):
         kept_entries.append(entry)
 
     if changed:
-        set_session_start_hooks(data, kept_entries)
-    return changed
+        set_event_hooks(data, event, kept_entries)
+    return removed
 
 
 def set_auto_permission_mode(data, warnings):
@@ -321,10 +550,23 @@ def configure():
 
     changes = []
     warnings = []
-    if prune_missing_bundle_hooks(data):
-        changes.append("  Cleaning up: SessionStart hooks for retired bundle scripts")
-    if register_adhd_hook(data):
+    # Name every removed registration. The backup that would undo a wrong prune
+    # is overwritten by the next changing run, so this line is the operator's
+    # only durable notice that something of theirs was deregistered.
+    for gone in prune_missing_bundle_hooks(data, warnings):
+        changes.append(f"  Removing: hook for a retired bundle script — {gone}")
+    if register_adhd_hook(data, warnings):
         changes.append("  Registering: ADHD SessionStart hook")
+    pm_added, pm_removed = register_pm_check_hooks(data, warnings)
+    if pm_added:
+        changes.append(
+            "  Registering: pre-build PM check hooks (%s)" % ", ".join(pm_added)
+        )
+    if pm_removed:
+        changes.append(
+            "  Unregistering: pre-build write gate (no %s marker)"
+            % pm_enforce_marker
+        )
     if set_auto_permission_mode(data, warnings):
         changes.append("  Setting: auto as the default permission mode")
 
@@ -362,19 +604,22 @@ def configure():
 try:
     configure()
 except Skip as exc:
-    print("  WARNING: the ADHD SessionStart hook and auto mode could not be")
-    print(f"           set up: {exc}.")
+    print("  WARNING: the ADHD SessionStart hook, the pre-build PM check hooks,")
+    print(f"           and auto mode could not be set up: {exc}.")
     print("           Nothing was changed. Fix that file and re-run this installer,")
-    print('           or say "/i-have-adhd" for ADHD mode and Shift+Tab for auto mode.')
+    print('           or say "/i-have-adhd" for ADHD mode and Shift+Tab for auto')
+    print("           mode. The pre-build gate stays off until the file parses.")
 except Exception as exc:  # never let this step break the install
     print(f"  WARNING: settings.json setup failed ({exc}).")
     print('           Nothing was changed. The skills are installed; say "/i-have-adhd"')
-    print("           for ADHD mode and cycle to auto mode with Shift+Tab.")
+    print("           for ADHD mode and cycle to auto mode with Shift+Tab. The")
+    print("           pre-build PM check hooks are not registered.")
 PY
 else
-  echo "  Skipped: ADHD hook + auto mode setup (python3 not found) — nothing"
-  echo '           will inject the ruleset, so say "/i-have-adhd" per session'
-  echo "           and cycle to auto mode with Shift+Tab."
+  echo "  Skipped: ADHD hook, pre-build PM check hooks, and auto mode setup"
+  echo "           (python3 not found). Nothing will inject the ruleset, so say"
+  echo '           "/i-have-adhd" per session and cycle to auto mode with'
+  echo "           Shift+Tab. The pre-build gate will not run at all."
 fi
 
 # Move .git so future updates are just `git pull`

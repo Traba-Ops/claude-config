@@ -37,7 +37,7 @@ Then open **Claude Code** (either in the terminal or the Code tab in the Claude 
 
 That's it. From here, just open Claude Code and start building. Skills update themselves in the background.
 
-> **Already installed?** The hourly `git pull` brings you new skill files, but it doesn't run the installer — so anything that needs setup (like auto mode or ADHD output mode, below) stays off until you re-run the curl command above. It's idempotent: safe to run any time, and it leaves your existing settings alone.
+> **Already installed? Re-run the curl command above.** The hourly `git pull` brings you new skill files, but it doesn't run the installer — so anything that needs setup (auto mode, ADHD output mode, and the new pre-build check, all below) stays off until you re-run it. It's idempotent: safe to run any time, and it leaves your existing settings alone.
 
 > **Note:** The setup prompt above must be run in **Claude Code** — it won't work in the Chat or Co-work tabs of the Claude app.
 
@@ -52,6 +52,7 @@ Once you install the Prometheus skills, Claude is pre-configured with:
 - **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
 - **Auto mode by default:** Claude acts on what you ask instead of stopping to ask permission at every step. Press Shift+Tab mid-session to cycle modes if you want it to slow down and confirm things. (If you've already picked a mode yourself, the installer leaves it alone.)
 - **Answers shaped to be acted on:** Claude leads with the next action, numbers multi-step work, restates where things stand, and skips the tangents — no filler, no "Sure! I'd be happy to help." Say "stop adhd mode" to turn it off for a session, or delete `~/.claude/.i-have-adhd-always` to turn it off for every session. Re-running the installer turns it back on.
+- **A check before you build something new:** when you ask for something that sounds like a new app, dashboard, bot, or script, Claude pauses before writing code and checks whether Traba already has it — 96 repos and 67 Railway projects hold six separate daily-recap agents and three shift-readiness SMS tools, all built by people with no way to know. It asks Neutron, reports what exists and who owns it, and only then builds. Editing something that already exists, bug fixes, and refactors are never gated. Out of the box this is a nudge — nothing stops Claude from writing files. To hold yourself to it, run `touch ~/.claude/.pm-check-enforce` and re-run the installer: from then on Claude can't write a file until the check has run, and there's no way to skip it mid-session — if Claude says it's blocked, let it finish the check. Changed your mind? Delete that file and re-run the installer, and the block comes back off.
 - **Automatic updates:** as we push improvements, every project gets them automatically
 
 ## Concepts You Should Know
