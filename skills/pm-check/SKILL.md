@@ -110,11 +110,18 @@ These are not questions — they are conditions. Say plainly if one is violated:
   comms broker: `POST /v1/worker-outreach/request` with `type: OPS_SMS`, recipients by
   `workerId` or `ghostProfileId` (raw phone numbers are rejected), authenticated as the
   acting recruiter. It carries sender attribution, opt-out suppression, blocked numbers,
-  dedup, geo-gating, and audit. Sending **from** an OpenPhone/Quo line uses
-  `propose_send_openphone_sms` instead — the broker's delivery is Twilio-backed and
-  cannot send from an OpenPhone number. An ad-hoc unattributed send is never acceptable.
-  (`POST /communication/send-direct-two-way-sms` is a **removed** endpoint; if you see it
-  quoted anywhere, that doc is stale.)
+  dedup, geo-gating, and audit. An ad-hoc unattributed send is never acceptable.
+
+  Sending **from** an OpenPhone/Quo line has **no mounted path today** — the broker's
+  delivery is Twilio-backed and cannot send from an OpenPhone number, and
+  `OPENPHONE_OUTBOUND_SMS_MOUNTED` is false, so no send tool exists to call. Say that
+  plainly, report the capability gap, and offer what is actually supported: a Slack
+  digest a human sends, or moving the send onto the broker from a Traba number. Naming a
+  tool that is not mounted sends the requester after a next step they cannot take.
+
+  (`POST /communication/send-direct-two-way-sms` is a **removed** endpoint, and
+  `propose_send_openphone_sms` is **not mounted**; if you see either quoted anywhere,
+  that doc is stale.)
 - **Traba data via sanctioned paths only** — bq-auth proxy for BigQuery, allow-listed
   service accounts for the node backend. Never ad-hoc GCP credentials.
 - **No deploy without auth** — `@traba.work` enforced server-side.
