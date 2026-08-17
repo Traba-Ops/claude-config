@@ -18,7 +18,8 @@ This skill is the client — it routes the request there and reports back.
 ## When this runs
 
 - The `pm-check-detect` hook saw a build-shaped prompt and asked for this check. The
-  separate `pm-check-gate` hook is what refuses the write.
+  separate `pm-check-gate` hook is what refuses the write, and it is registered only
+  on machines that opted in to enforcement — run the check either way.
 - Or you were asked to build something and want to check first.
 
 Do **not** run it for edits to something that already exists, bug fixes, refactors, or

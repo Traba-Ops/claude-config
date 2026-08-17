@@ -151,10 +151,23 @@ pm_detect_command = f"{hooks_dir}pm-check-detect.sh"
 pm_gate_command = f"{hooks_dir}pm-check-gate.sh"
 pm_reset_command = f"{hooks_dir}pm-check-reset.sh"
 
+# Opt-in marker for the PreToolUse write gate. The detector and the reset hook
+# ship to everyone — those only nudge, and nobody can be blocked by them — while
+# the hook that actually denies Write/Edit is registered only for operators who
+# created this file. The gate is local `stat` calls with no network in it, so no
+# server-side flag can turn it off once it is registered; install time is the
+# only control point, which is why removing the marker and re-running has to
+# deregister it (see `remove_hook`). Making the gate the default later is a
+# one-line change: drop the condition in `register_pm_check_hooks`.
+pm_enforce_marker = claude_dir.rstrip("/") + "/.pm-check-enforce"
+
 # Every script this bundle registers. The prune below deletes registrations whose
 # script is gone from hooks/ — so a command missing from this set that is
 # temporarily absent from disk would be pruned and then re-added on the next
 # install, churning settings.json. Keep it in sync with what gets registered.
+# `pm_gate_command` belongs here even though it is registered conditionally: the
+# script ships to everyone either way, so prune must leave it alone and let
+# `remove_hook` be the only thing that deregisters it.
 bundle_commands = {
     command,
     pm_detect_command,
@@ -264,6 +277,60 @@ def register_hook(data, event, script, entry, warnings):
     return True
 
 
+def remove_hook(data, event, script, warnings):
+    """Drop every registration of exactly `script` under `event`. True if `data`
+    was changed.
+
+    The counterpart to `register_hook`, and the kill switch for the write gate: a
+    hook the installer can only ever add is not opt-in, it is one-way. Deleting
+    the opt-in marker and re-running has to actually deregister the gate, on a
+    machine where it is already wired up.
+
+    Matched on argv[0], exactly, like `already_registered` — an operator's own
+    `hooks/other/my-pm-check-gate.sh` is a different hook and stays.
+    """
+    entries = event_hooks(data, event, warnings)
+    if entries is None:
+        return False
+
+    changed = False
+    kept_entries = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            kept_entries.append(entry)
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            kept_entries.append(entry)
+            continue
+
+        kept_hooks = [h for h in entry_hooks if hook_script_path(h) != script]
+        if len(kept_hooks) == len(entry_hooks):
+            kept_entries.append(entry)  # untouched — leave it exactly as it came
+            continue
+
+        changed = True
+        if not kept_hooks:
+            continue  # the removal emptied it; drop the entry too
+        entry = dict(entry)
+        entry["hooks"] = kept_hooks
+        kept_entries.append(entry)
+
+    if changed:
+        set_event_hooks(data, event, kept_entries)
+    return changed
+
+
+def enforcement_opted_in():
+    """True when this machine has opted in to the write gate.
+
+    Plain `exists` on purpose: anything that is not provably a real, reachable
+    marker means no gate, and "no gate" is the direction that cannot block
+    anyone.
+    """
+    return os.path.exists(pm_enforce_marker)
+
+
 def register_adhd_hook(data, warnings):
     """Add the ADHD SessionStart hook. True if `data` was changed."""
     return register_hook(data, "SessionStart", command, {
@@ -285,12 +352,16 @@ def register_pm_check_hooks(data, warnings):
     is added independently, so a partially-registered settings.json converges
     instead of being skipped wholesale.
 
-    Returns the names of the hooks it registered, so the installer reports what
+    Detect and reset go to everyone; the gate goes only to machines carrying the
+    opt-in marker, and is removed again from machines that no longer carry it.
+
+    Returns (registered, removed) hook names, so the installer reports what
     actually landed. Saying "pre-build PM check hooks" when one of three was
     written is how a half-wired gate goes unnoticed.
     """
     # `UserPromptSubmit` takes no matcher — it always fires.
     added = []
+    removed = []
     if register_hook(data, "UserPromptSubmit", pm_detect_command, {
         "hooks": [{
             "type": "command",
@@ -303,16 +374,19 @@ def register_pm_check_hooks(data, warnings):
 
     # A matcher of plain names is an exact-string list, not a regex, so `Edit`
     # does not incidentally cover `NotebookEdit` — it has to be named.
-    if register_hook(data, "PreToolUse", pm_gate_command, {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [{
-            "type": "command",
-            "command": pm_gate_command,
-            "timeout": 5,
-            "statusMessage": "Checking the pre-build gate...",
-        }],
-    }, warnings):
-        added.append("gate")
+    if enforcement_opted_in():
+        if register_hook(data, "PreToolUse", pm_gate_command, {
+            "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+            "hooks": [{
+                "type": "command",
+                "command": pm_gate_command,
+                "timeout": 5,
+                "statusMessage": "Checking the pre-build gate...",
+            }],
+        }, warnings):
+            added.append("gate")
+    elif remove_hook(data, "PreToolUse", pm_gate_command, warnings):
+        removed.append("gate")
 
     # `fork` is listed because the hook exempts forked sessions by name, and it
     # cannot exempt a source it never receives. Without it the hook simply never
@@ -329,7 +403,7 @@ def register_pm_check_hooks(data, warnings):
     }, warnings):
         added.append("reset")
 
-    return added
+    return added, removed
 
 
 def definitely_absent(path):
@@ -483,10 +557,15 @@ def configure():
         changes.append(f"  Removing: hook for a retired bundle script — {gone}")
     if register_adhd_hook(data, warnings):
         changes.append("  Registering: ADHD SessionStart hook")
-    pm_added = register_pm_check_hooks(data, warnings)
+    pm_added, pm_removed = register_pm_check_hooks(data, warnings)
     if pm_added:
         changes.append(
             "  Registering: pre-build PM check hooks (%s)" % ", ".join(pm_added)
+        )
+    if pm_removed:
+        changes.append(
+            "  Unregistering: pre-build write gate (no %s marker)"
+            % pm_enforce_marker
         )
     if set_auto_permission_mode(data, warnings):
         changes.append("  Setting: auto as the default permission mode")

@@ -425,12 +425,16 @@ awk '/python3 - <<.PY./{f=1;next} /^PY$/{f=0} f' "$repo/install.sh" > "$py"
 [ -s "$py" ]
 check "the settings.json pass was extracted from install.sh" $? "extraction produced nothing"
 
-run_configure() { # settings-json-or-empty  → prints resulting settings.json
+run_configure() { # name, settings-json-or-empty  → writes $work/cfg.<name>
   cfg="$work/cfg.$1"
   rm -rf "$cfg"
   mkdir -p "$cfg/hooks"
   shift
   [ -z "${1:-}" ] || printf '%s' "$1" > "$cfg/settings.json"
+  # One-shot: set `enforce=1` on the line before the call to opt that fixture in
+  # to the write gate. Cleared here so it can never leak into the next case.
+  [ -z "${enforce:-}" ] || : > "$cfg/.pm-check-enforce"
+  enforce=
   CLAUDE_DIR="$cfg" python3 "$py" >"$work/configure.out" 2>&1
 }
 
@@ -438,8 +442,6 @@ run_configure fresh ""
 python3 - "$work/cfg.fresh/settings.json" <<'CHECK'
 import json, sys
 d = json.load(open(sys.argv[1]))
-pre = d["hooks"]["PreToolUse"]
-assert any("NotebookEdit" in e.get("matcher", "") for e in pre), pre
 assert d["permissions"]["defaultMode"] == "auto"
 assert any(h["hooks"][0]["command"].endswith("pm-check-detect.sh")
            for h in d["hooks"]["UserPromptSubmit"])
@@ -451,7 +453,20 @@ reset = [e for e in d["hooks"]["SessionStart"]
 assert len(reset) == 1, reset
 assert "fork" in reset[0]["matcher"], reset[0]["matcher"]
 CHECK
-check "fresh install registers all three hooks, matcher covers NotebookEdit" $? \
+check "fresh install registers the detect and reset hooks" $? \
+  "$(cat "$work/configure.out")"
+
+# Merge-dormant. The gate is the only hook here that can deny a tool call, and it
+# is pure local file stat calls — no flag anyone can flip after the fact — so an
+# unconditional registration means merging this bundle blocks every operator's
+# next build prompt. Absent the marker it must not be registered at all.
+grep -q "pm-check-gate.sh" "$work/cfg.fresh/settings.json"
+r=$?
+[ "$r" -ne 0 ]
+check "no enforce marker: the write gate is NOT registered" $? \
+  "$(cat "$work/cfg.fresh/settings.json")"
+grep -q "detect, reset" "$work/configure.out"
+check "no enforce marker: the installer names only the hooks it wired" $? \
   "$(cat "$work/configure.out")"
 
 # Re-running the installer is the documented way to pick up a setup-dependent
@@ -460,6 +475,89 @@ before=$(cat "$work/cfg.fresh/settings.json")
 CLAUDE_DIR="$work/cfg.fresh" python3 "$py" >"$work/configure.out" 2>&1
 [ "$before" = "$(cat "$work/cfg.fresh/settings.json")" ]
 check "a second installer pass changes nothing" $? "$(cat "$work/configure.out")"
+
+# The opt-in: `touch ~/.claude/.pm-check-enforce`, re-run, get the full gate.
+enforce=1
+run_configure enforced ""
+python3 - "$work/cfg.enforced/settings.json" <<'CHECK'
+import json, sys
+d = json.load(open(sys.argv[1]))
+gate = [e for e in d["hooks"]["PreToolUse"]
+        if e["hooks"][0]["command"].endswith("pm-check-gate.sh")]
+assert len(gate) == 1, gate
+# A matcher of plain names is an exact-string list, not a regex, so NotebookEdit
+# is only covered if it is named.
+assert "NotebookEdit" in gate[0]["matcher"], gate[0]["matcher"]
+assert any(h["hooks"][0]["command"].endswith("pm-check-detect.sh")
+           for h in d["hooks"]["UserPromptSubmit"])
+CHECK
+check "enforce marker: the write gate IS registered, covering NotebookEdit" $? \
+  "$(cat "$work/configure.out")"
+grep -q "detect, gate, reset" "$work/configure.out"
+check "enforce marker: the installer names all three PM hooks" $? \
+  "$(cat "$work/configure.out")"
+
+before=$(cat "$work/cfg.enforced/settings.json")
+CLAUDE_DIR="$work/cfg.enforced" python3 "$py" >"$work/configure.out" 2>&1
+[ "$before" = "$(cat "$work/cfg.enforced/settings.json")" ]
+check "a second pass with the marker still present changes nothing" $? \
+  "$(cat "$work/configure.out")"
+
+# The kill switch, and the reason the marker is checked on every run rather than
+# once: a hook the installer can only ever add is not opt-in, it is one-way. An
+# operator who deletes the marker and re-runs must actually stop being gated —
+# without losing the detector, the reset hook, or their own PreToolUse hooks.
+rm -f "$work/cfg.enforced/.pm-check-enforce"
+: > "$work/cfg.enforced/hooks/my-own-guard.sh"
+python3 - "$work/cfg.enforced/settings.json" "$work/cfg.enforced" <<'CHECK'
+import json, sys
+path, root = sys.argv[1], sys.argv[2]
+d = json.load(open(path))
+d["hooks"].setdefault("PreToolUse", []).append(
+    {"matcher": "Bash",
+     "hooks": [{"type": "command", "command": f"{root}/hooks/my-own-guard.sh"}]})
+json.dump(d, open(path, "w"), indent=2)
+CHECK
+CLAUDE_DIR="$work/cfg.enforced" python3 "$py" >"$work/configure.out" 2>&1
+python3 - "$work/cfg.enforced/settings.json" "$work/cfg.enforced" <<'CHECK'
+import json, sys
+d, root = json.load(open(sys.argv[1])), sys.argv[2]
+def commands(event):
+    return [h.get("command", "") for e in d["hooks"][event] for h in e["hooks"]]
+assert f"{root}/hooks/pm-check-gate.sh" not in commands("PreToolUse"), \
+    commands("PreToolUse")
+assert f"{root}/hooks/my-own-guard.sh" in commands("PreToolUse"), \
+    "an operator's own PreToolUse hook was dropped with the gate"
+assert f"{root}/hooks/pm-check-detect.sh" in commands("UserPromptSubmit"), \
+    "the detector was dropped along with the gate"
+assert any(c.endswith("pm-check-reset.sh") for c in commands("SessionStart")), \
+    "the reset hook was dropped along with the gate"
+CHECK
+check "marker removed then reinstalled: the write gate is UNREGISTERED" $? \
+  "$(cat "$work/configure.out")"
+grep -q "Unregistering: pre-build write gate" "$work/configure.out"
+check "the removed gate is named in the installer output" $? \
+  "$(cat "$work/configure.out")"
+
+# Nothing left to remove — the run after the kill switch must not keep rewriting
+# settings.json (a .bak overwritten on every install loses the operator's undo).
+before=$(cat "$work/cfg.enforced/settings.json")
+CLAUDE_DIR="$work/cfg.enforced" python3 "$py" >"$work/configure.out" 2>&1
+[ "$before" = "$(cat "$work/cfg.enforced/settings.json")" ]
+check "unregistering the gate is idempotent" $? "$(cat "$work/configure.out")"
+
+# Un-registration matches argv[0] exactly, like registration does. A look-alike
+# of the operator's own is a different hook and stays.
+lookalike="$work/cfg.lookalike"
+rm -rf "$lookalike"
+mkdir -p "$lookalike/hooks/other"
+: > "$lookalike/hooks/other/my-pm-check-gate.sh"
+printf '{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"%s/hooks/other/my-pm-check-gate.sh"}]}]}}' \
+  "$lookalike" > "$lookalike/settings.json"
+CLAUDE_DIR="$lookalike" python3 "$py" >"$work/configure.out" 2>&1
+grep -q "other/my-pm-check-gate.sh" "$lookalike/settings.json"
+check "un-registration keeps a look-alike operator hook" $? \
+  "$(cat "$lookalike/settings.json")"
 
 # A malformed value under one event must not veto the other mutations.
 run_configure badevent '{"hooks":{"PreToolUse":{"oops":true}}}'
@@ -533,6 +631,7 @@ check "the .bak lands next to the real file, not next to the symlink" $?
 decoy="$work/decoy"
 rm -rf "$decoy"
 mkdir -p "$decoy/hooks/other"
+: > "$decoy/.pm-check-enforce"  # the gate is the interesting look-alike here
 : > "$decoy/hooks/other/my-pm-check-gate.sh"
 printf '{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"%s/hooks/other/my-pm-check-gate.sh"}]}],"UserPromptSubmit":[{"hooks":[{"type":"command","command":"logger --tag pm-check-detect.sh"}]}]}}' \
   "$decoy" > "$decoy/settings.json"
