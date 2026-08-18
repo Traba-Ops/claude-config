@@ -1,6 +1,9 @@
-# Prometheus Framework
+# Prometheus Framework - DEPRECATED
 
-A framework for non-engineering teams to build and deploy their own tools using Claude. You get a sandbox with guardrails, and you ship when you're ready.
+**This repo is deprecated.** Claude config distribution — skills, rules, and agents — now
+lives in [Bazaar](https://relay.traba.work/bazaar): browse and subscribe there, and assets
+sync to your machine automatically. Nothing in this repo is maintained. The mission it was
+built for stands, below.
 
 ## The Mission: Field → Core
 
@@ -14,86 +17,6 @@ Projects move through a pipeline based on demand:
 
 The natural course is: you build something, others want it, it gets deployed, and if it's valuable enough it becomes part of the core product. Going from a local prototype to a shared tool should be on rails and self-service, with minimal engineering involvement.
 
-## Setup
-
-Before your first project, you need the Traba skills installed. You install once, and updates pull automatically in the background.
-
-First, make sure git knows who you are (needed for checkpoints later):
-
-```bash
-git config --global user.name "Your Name"
-git config --global user.email "your.email@traba.work"
-```
-
-Then run the installer:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Traba-Ops/claude-config/main/install.sh | sh
-```
-
-Then open **Claude Code** (either in the terminal or the Code tab in the Claude app) and ask it to set up automatic updates:
-
-> "Set up a launchd job that runs `cd ~/.claude && git pull` every hour between 9 AM and 9 PM"
-
-That's it. From here, just open Claude Code and start building. Skills update themselves in the background.
-
-> **Already installed?** The hourly `git pull` brings you new skill files, but it doesn't run the installer — so anything that needs setup (like auto mode or ADHD output mode, below) stays off until you re-run the curl command above. It's idempotent: safe to run any time, and it leaves your existing settings alone.
-
-> **Note:** The setup prompt above must be run in **Claude Code** — it won't work in the Chat or Co-work tabs of the Claude app.
-
-## What You Get
-
-Once you install the Prometheus skills, Claude is pre-configured with:
-
-- **Stack and toolchain:** every project uses a consistent stack with the latest, fastest tooling, which makes it easy to share and promote later
-- **Security rules:** your app handles sensitive data safely from day one
-- **Design language:** your app looks and feels like a Traba product from the start
-- **Development hygiene:** your project builds up documentation naturally as you work, making it easy for others to pick up or for engineers to promote later
-- **Deployment guidance:** when it's time to share your app, Claude already knows how to get it deployed
-- **Auto mode by default:** Claude acts on what you ask instead of stopping to ask permission at every step. Press Shift+Tab mid-session to cycle modes if you want it to slow down and confirm things. (If you've already picked a mode yourself, the installer leaves it alone.)
-- **Answers shaped to be acted on:** Claude leads with the next action, numbers multi-step work, restates where things stand, and skips the tangents — no filler, no "Sure! I'd be happy to help." Say "stop adhd mode" to turn it off for a session, or delete `~/.claude/.i-have-adhd-always` to turn it off for every session. Re-running the installer turns it back on.
-- **Automatic updates:** as we push improvements, every project gets them automatically
-
-## Concepts You Should Know
-
-Claude will handle most of the technical complexity, but you should be familiar with these general concepts. If you're interested, the footnotes explain a bit more what's happening under the hood.
-
-- **Checkpoints:** Save your progress at any time by telling Claude "checkpoint this." Think of it like Google Docs version history, but for code. You can always go back. Claude will also suggest checkpointing when you finish something or switch to a different task. [^1]
-
-- **Secrets:** API keys, passwords, and tokens that connect your app to other services. These should never be shared, pasted in Slack, or put directly in code. When your app needs a secret, an engineer will set it up for you. [^2]
-
-- **Deploying:** Making your app available at a URL so other people can use it. Your app starts by running only on your machine. When others want access, post in **#claudecodestuff** or reach out to Sumeet or Jeff directly. Engineers: see the [eng runbook](docs/eng-runbook.md). [^3]
-
-- **The Spec:** As you build, Claude keeps two documents up to date: a README that explains what your app does and how to use it, and a spec with the technical details an engineer would need to rebuild it. You don't write either one.
-
-- **Running more than one Claude:** You can have several Claude sessions going at once — one per task — and move between them, pick up one session's work inside another, or have a team of Claudes collaborate on a single task in real time. See [Running More Than One Claude](docs/multi-session.md).
-
-- **Scheduling things to run automatically:** Want something to happen every morning, every hour, or on a repeat? Just tell Claude — it'll set up the right kind of scheduled job for you (a cloud routine when it needs to think each time, or a free local job when it's the same steps every time). You don't need to know the difference.
-
 ## Beyond the Pipeline: Shipping to Core Directly
 
 The pipeline assumes a handoff between operators and engineers. But we're already experimenting with operators shipping directly to the core codebase: the marketing team (MDS, Kanellis) submitting small PRs, Rohan shipping an entire feature end-to-end. Within EPD we're also exploring options to accelerate AI agents working within our codebase like preview environments and automated review safety nets. The goal is to get operators shipping full-stack features independently, with minimal engineering lift.
-
-## Internal Reference (Engineers)
-
-| Document | Purpose |
-|----------|---------|
-| [Eng Runbook](docs/eng-runbook.md) | Step-by-step: getting an operator from zero to deployed |
-| [Admin Operations](docs/admin.md) | Automated maintenance, access provisioning, cost tracking |
-| [Prescriptive Stack](docs/stack.md) | What to use and why — the full technology prescription |
-| [Security Guardrails](docs/security.md) | Hard checks, SDLC controls, and infrastructure-level protections |
-| [Promotion Pipeline](docs/pipeline.md) | How projects move from prototype to production, and how specs accumulate |
-| [Running More Than One Claude](docs/multi-session.md) | Background sessions, the park/unpark skills, and enabling agent teams |
-| [Skill Bundle Spec](docs/skill-bundle-spec.md) | What goes into the Claude skills bundle and how it's delivered |
-| [Authoring Rules](docs/authoring-rules.md) | The bar a rule must clear to load into every session — read before editing `rules/` |
-| [Open Questions](docs/open-questions.md) | Gaps, deferred decisions, and things to watch |
-
----
-
-## Footnotes
-
-[^1]: **How checkpoints work.** Under the hood, Claude uses **git**. Each checkpoint is a **commit** — a snapshot of every file in your project at that moment, with a message describing what changed. Commits form a timeline you can jump back to at any point.
-
-[^2]: **Why secrets matter.** An API key is like a password that lets your app talk to another service (a database, a payment processor, an AI model). If someone gets your API key, they can use that service as you — reading your data, running up your bill, or worse. Secrets go in Railway environment variables for deployed apps and `.env` files locally, never in code, never in Slack, never in a document.
-
-[^3]: **What deployment means.** When your app runs on `localhost`, that literally means "this computer" — nobody else can see it. Deploying copies your app to a server in the cloud (we use Railway) that runs it 24/7 and gives it a URL. We put an authentication layer inside the app (in-app Google OAuth) so only people with a `@traba.work` email can access it.
