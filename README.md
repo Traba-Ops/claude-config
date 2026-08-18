@@ -1,4 +1,4 @@
-# Prometheus Framework
+# Prometheus Framework - DEPRECATED
 
 **This repo is deprecated.** Claude config distribution — skills, rules, and agents — now
 lives in [Bazaar](https://relay.traba.work/bazaar): browse and subscribe there, and assets
